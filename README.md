@@ -32,7 +32,7 @@ Each package declares `Replaces:`/`Conflicts: rh-utils` (the retired monolithic 
 
 ## Install
 
-Installed as part of the platform bootstrap (`sudo ./DB_install.sh` at the superproject root), which builds and installs each repo's debs in dependency order. To install just these by hand:
+Installed as part of the platform bootstrap (`sudo ./dbctl install --vm|--release` at the superproject root), which builds and installs each repo's debs in dependency order. To install just these by hand:
 
 ```bash
 sudo apt-get install --yes ./build/debs/rh-util-*_1.0.0_all.deb \
