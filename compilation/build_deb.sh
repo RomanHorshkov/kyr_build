@@ -80,6 +80,13 @@ Replaces: rh-utils
 Conflicts: rh-utils
 Description: ${desc}
 EOF
+    # Ship the DEP-5 copyright file (first-party terms + every third-party notice)
+    # at /usr/share/doc/<pkg>/copyright (Debian Policy 12.5). A missing file is a
+    # build error: a binary must never leave without its notices.
+    COPYRIGHT_SRC="${ROOT_DIR}/debian/copyright"
+    [[ -f "${COPYRIGHT_SRC}" ]] || die "missing ${COPYRIGHT_SRC} — third-party notices must ship in the deb"
+    install -d -m 0755 "${stage}/usr/share" "${stage}/usr/share/doc" "${stage}/usr/share/doc/${pkg}"
+    install -m 0644 "${COPYRIGHT_SRC}" "${stage}/usr/share/doc/${pkg}/copyright"
     local deb="${OUT_DIR}/${pkg}_${VER}_all.deb"
     fakeroot dpkg-deb --build "${stage}" "${deb}" >/dev/null
     printf '  built  %s\n' "$(basename "${deb}")"
