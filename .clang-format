@@ -6,7 +6,7 @@ TabWidth: 4                   # Set tab width to 4 spaces, even if tabs not used
 UseTab: Never                 # Always use spaces, never tabs
 
 # Code formatting limits
-ColumnLimit: 100               # Maximum line length
+ColumnLimit: 140              # Maximum line length
 SortIncludes: true            # Alphabetize #include directives
 IncludeBlocks: Preserve       # Preserve relative order of blocks of includes
 
