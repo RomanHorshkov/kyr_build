@@ -1,0 +1,35 @@
+@startuml
+' claim: kyr-build is one package every repository pins; nothing in it is copied into a repository
+package "kyr-build (/usr/local/share/kyr-build or build/sysroot/share/kyr-build)" {
+  [gcc_build_profiles.sh] as catalog
+  [check_hardening.sh] as gate
+  [deps.sh] as deps
+  [vendor.sh] as vendor
+  [lib/deb.sh] as deblib
+  [lib/build.sh] as buildlib
+  [buildinfo.sh] as buildinfo
+  [build_root.sh] as root
+  [tiers.txt] as tiers
+  [template/] as template
+}
+package "a repository" {
+  [utils/deps.sh (wrapper)] as wdeps
+  [utils/gcc_build_profiles.sh (wrapper)] as wcat
+  [utils/check_hardening.sh (wrapper)] as wgate
+  [utils/build_deb.sh] as bdeb
+  [utils/<name>_project.sh] as project
+  [deps.txt] as depstxt
+}
+wdeps --> deps : bootstraps by version + sha256, then exec
+wcat --> catalog : source
+wgate --> gate : exec
+bdeb --> deblib : source
+bdeb --> buildlib : source
+deblib --> buildinfo : one .buildinfo per deb
+deps --> tiers : check --tiers
+deps --> vendor : verify
+depstxt --> wdeps : own kyr-build <ver> <repo> <sha256>
+project --> catalog : gcc_build_add / drop / replace
+template ..> "a repository" : layout and wrappers (template_check.sh refuses drift)
+root ..> buildinfo : Build-Root hash
+@enduml

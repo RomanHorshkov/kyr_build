@@ -1,14 +1,6 @@
 name: Release
 
-# Fires on a v* tag push (created automatically by auto-tag-release.yml on every master push, or
-# manually). Runs the full pipeline (build + package, header-only debs) as the gate, then
-# publishes every produced rh-util-* .deb + checksums as a GitHub Release. No reusable
-# quality-gate workflow_call here — this repo has no CI workflow at all yet, so this release
-# workflow is also this repo's first real build/package gate.
-#
-# No build-provenance attestation: actions/attest-build-provenance is unavailable for user-owned
-# private repositories and hard-fails the job rather than degrading gracefully (same wall
-# EMlog/MPSCring/SPSCring's own release.yml already documents).
+# Quality gate first, then the shared release from cicd: tag check, double build on two runners, hash compare, GitHub Release.
 
 on:
   push:
@@ -24,62 +16,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-publish:
-    name: Build, package, publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  quality-gate:
+    name: Quality gate
+    uses: ./.github/workflows/quality.yml
+
+  release:
+    name: Release
+    needs: quality-gate
     permissions:
       contents: write
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-
-      - name: Read version
-        id: version
-        run: echo "value=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
-
-      - name: Verify tag matches VERSION
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          EXPECTED_TAG="v${{ steps.version.outputs.value }}"
-          ACTUAL_TAG="${GITHUB_REF_NAME}"
-          if [ "$ACTUAL_TAG" != "$EXPECTED_TAG" ]; then
-            echo "Tag/version mismatch: expected $EXPECTED_TAG but got $ACTUAL_TAG"
-            exit 1
-          fi
-
-      - name: Install dependencies
-        env: { DEBIAN_FRONTEND: noninteractive }
-        run: |
-          sudo apt-get -yqq update
-          sudo apt-get -yqq install build-essential pkg-config fakeroot
-
-      - name: Run full pipeline (build + package, header-only debs)
-        run: ./compilation/run_pipeline.sh
-
-      - name: Checksums
-        run: |
-          cd build/debs
-          sha256sum *.deb > SHA256SUMS
-
-      - name: Upload workflow artifacts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-assets
-          if-no-files-found: error
-          path: |
-            build/debs/*.deb
-            build/debs/SHA256SUMS
-
-      - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            build/debs/*.deb \
-            build/debs/SHA256SUMS \
-            --generate-notes \
-            --title "Utils ${GITHUB_REF_NAME}"
+      id-token: write
+      attestations: write
+    uses: RomanHorshkov/cicd/.github/workflows/c-release.yml@v2
+    with:
+      kind: app
+      title: kyr_build

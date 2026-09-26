@@ -1,85 +1,37 @@
-# rh-utils — header-only utilities, one Debian package per header
+# kyr_build
 
-Small, dependency-free C headers shared across the DB platform repos. Each header is packaged as its **own** Debian package shipping a single `.h`, plus one `rh-utils-devtools` package for the shared build tooling.
+The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every repository pins in `deps.txt` and never copies. Plus the header-only utilities as one deb per header.
 
-## Headers → packages
+## Packages
 
-| Header (`header_only/`)   | Package                        | Installs to                              | Consumed as                        |
-|---------------------------|--------------------------------|------------------------------------------|------------------------------------|
-| `string_view.h`           | `rh-util-string-view`          | `/usr/local/include/utils/string_view.h` | `#include <utils/string_view.h>`   |
-| `memory_macros.h`         | `rh-util-memory-macros`        | `/usr/local/include/utils/memory_macros.h` | `#include <utils/memory_macros.h>` |
-| `time_macros.h`           | `rh-util-time-macros`          | `/usr/local/include/utils/time_macros.h` | `#include <utils/time_macros.h>`   |
-| `preprocessor_macros.h`   | `rh-util-preprocessor-macros`  | `/usr/local/include/utils/preprocessor_macros.h` | `#include <utils/preprocessor_macros.h>` |
-| — (build tooling)         | `rh-utils-devtools`            | `/usr/local/share/rh-utils/{gcc_build_profiles.sh,check_hardening.sh,.clang-format,testkit/}` | tooling, not `#include`d |
+| Package | Installs | Notes |
+|---|---|---|
+| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `template/` |
+| `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
+| `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
 
-The include path is **flat**: every header lands directly in `/usr/local/include/utils/`, so `#include <utils/<name>.h>` works unchanged. The package split is purely about *distribution* — a consumer depends only on the headers it actually includes, and each header can version independently.
+Headers: `memory_macros.h`, `preprocessor_macros.h`, `string_view.h`, `time_macros.h` under `app/include/kyr/util/`.
 
-## Why one package per header
+## How a repository uses it
 
-- **Minimal dependencies.** DB_http includes only `<utils/memory_macros.h>` and `<utils/string_view.h>`; its deb depends on just those two packages, not on a monolith carrying headers it never uses.
-- **Independent versioning.** Bumping `string_view.h` is a version bump of `rh-util-string-view` alone; unrelated consumers are untouched.
-- **Clear ownership.** `dpkg -S /usr/local/include/utils/time_macros.h` names exactly one package.
+`deps.txt` carries `own kyr-build <ver> RomanHorshkov/Utils <sha256>`. The repository keeps four thin wrappers from `template/utils/` (`deps.sh`, `gcc_build_profiles.sh`, `check_hardening.sh`, `vendor.sh`); `utils/deps.sh` bootstraps the pinned deb by exact version and sha256 into `build/sysroot/share/kyr-build/` (no sudo, the Gradle-wrapper pattern), then `deps.sh sysroot` extracts every other pinned deb into `build/sysroot/` and prints the exports (`<NAME>_DEPS_INCLUDE_DIR`, `<NAME>_DEPS_LIB_DIR`, `KYR_BUILD_DIR`, `LD_LIBRARY_PATH`, `PKG_CONFIG_PATH`). Two repositories pin different versions of one library on one workstation.
 
-## Build
-
-```bash
-bash compilation/build_deb.sh          # → build/debs/*.deb (5 packages)
+```
+./utils/deps.sh sysroot && eval "$(./utils/deps.sh env)" && ./utils/run_pipeline.sh
+./utils/deps.sh check --tiers        # the tier law: a repository pins only lower tiers (share/tiers.txt)
+./utils/gcc_build_profiles.sh explain
 ```
 
-The script discovers `header_only/*.h` automatically — **adding a header needs no script edit**; it becomes `rh-util-<name>` (underscores → hyphens) on the next build. Version comes from `VERSION` (currently `1.0.0`) and applies to every package it emits. Output lands in `build/debs/`.
+Per-project flags live in `utils/<name>_project.sh`, sourced after the catalog: `gcc_build_add`, `gcc_build_drop`, `gcc_build_replace`. The catalog is the default, never a law.
 
-Each package declares `Replaces:`/`Conflicts: rh-utils` (the retired monolithic package), so on a machine that still has the old `rh-utils`, `apt` removes it and the split packages take over its files with no conflict.
+## Reproducible builds
 
-## Install
+The catalog fixes `umask 022`, exports `SOURCE_DATE_EPOCH` from the commit being built and `TZ=UTC`, and puts `-ffile-prefix-map=<root>=.` and `-fdebug-prefix-map` in every profile; `GCC_BUILD_ARFLAGS` is `rcsD`. `lib/deb.sh` builds with `dpkg-deb --root-owner-group`, epoch-clamped mtimes and sorted tars (`deb_tar`), and writes one `<deb>.buildinfo` next to every deb (`buildinfo.sh`: hash, epoch, build-root hash, commit, flags, tool versions, pins). `build_root.sh` makes the pinned build root (`debootstrap` from `snapshot.ubuntu.com` at one date, hash recorded in `build/root.sha256`, entered with `unshare`/`chroot`); `create` and `hash` need root.
 
-Installed as part of the platform bootstrap (`sudo ./dbctl install --vm|--release` at the superproject root), which builds and installs each repo's debs in dependency order. To install just these by hand:
+## This repository
 
-```bash
-sudo apt-get install --yes ./build/debs/rh-util-*_1.0.0_all.deb \
-                           ./build/debs/rh-utils-devtools_1.0.0_all.deb
-```
+`./utils/run_pipeline.sh`: every script parses, every header compiles as C11 and C++17, the debs build, then `tests/ITs/` prove from the built deb that a second build is byte-identical, that the template repository is green out of the box and builds the same deb from two directories, that the wrapper refuses a wrong sha256, and that the tier law holds. `./utils/build_deb.sh` alone writes `build/debs/` with `SHA256SUMS`.
 
-Verify:
+Release: master green, signed tag `v<VERSION>`, `release.yml` (cicd `c-release`, double build on two runners). Consumers pin the new version with the sha256 from `SHA256SUMS`.
 
-```bash
-dpkg -L rh-util-memory-macros            # → /usr/local/include/utils/memory_macros.h
-echo '#include <utils/memory_macros.h>' | gcc -fsyntax-only -x c -   # compiles
-```
-
-## Build profiles & hardening — the canonical catalog
-
-This repo is the **home** of the platform's build policy: `compilation/gcc_build_profiles.sh` (the flag catalog every repo syncs verbatim — per-flag cost/rationale is documented inline in that file) and `compilation/check_hardening.sh` (the readelf verifier that gates every release artifact). Both ship in `rh-utils-devtools` under `/usr/local/share/rh-utils/`. Changing a flag HERE changes it for the whole platform on the next profile sync.
-
-The profile lineup:
-
-| Profile | Optimization | Warnings | Instrumentation | Hardened | Use it for |
-|---------|--------------|----------|-----------------|----------|------------|
-| `debug` | `-Og -g3` | core | — | no | day-to-day development |
-| `audit` | `-O1 -g3` | everything + `-fanalyzer` | — | yes | compiler-driven validation |
-| `sanitize` | `-O1 -g3` | strict | ASan + UBSan + LSan | yes, minus FORTIFY (conflicts with ASan) | runtime bug hunting |
-| `release` | `-O2 -DNDEBUG` | strict | — | yes — the full set below | production, the deb payload |
-| `native` | `-O3 -flto -march=native` | strict | — | yes | benchmarks on the deploy box |
-| `extreme` | `-O3 -flto -march=native` | core | — | deliberately none | max-perf experiments only |
-
-Release hardening, by stage:
-
-| Flag | Stage | What it does |
-|------|-------|--------------|
-| `-fstack-protector-strong` | compile | stack canary on frames with arrays / address-taken locals |
-| `-fstack-clash-protection` | compile | stack grows page by page — the guard page can't be jumped over |
-| `-fcf-protection=full` | compile | x86-64 CET: indirect-branch tracking + shadow stack (NOP on older CPUs) |
-| `-fno-common` | compile | duplicate tentative globals become link errors |
-| `-D_FORTIFY_SOURCE=3` | preprocess | checked libc calls (`memcpy`, `snprintf`, …) with dynamic object sizes |
-| `-fPIC` / `-fPIE` | compile | position-independent code (libraries / executables) |
-| `-Wl,-z,relro -Wl,-z,now` | link (`.so` + exe) | GOT/PLT read-only after load — full RELRO |
-| `-Wl,-z,noexecstack` | link | non-executable stack, asserted |
-| `-Wl,-z,defs` | link (`.so`) | undefined symbols fail the build, not the load on the box |
-| `-Wl,--as-needed` | link (`.so`) | only real dependencies recorded as NEEDED |
-| `-pie` | link (exe) | ASLR randomizes the executable image itself |
-
-Two rules with teeth:
-
-- **The two link policies never mix.** Profile LDFLAGS contain `-pie`; in a `gcc -shared` link that makes the driver link an executable image and the build FAILS. Shared links take `LDFLAGS_SHARED`, executables take the profile LDFLAGS.
-- **Artifacts are verified, not trusted.** `check_hardening.sh` asserts PIE / full RELRO / non-exec stack / no TEXTREL (hard, exit 2) and reports canaries + fortified calls (soft — presence depends on code shape).
-
-Deliberately disabled pending measurement (see the catalog comments): `-ftrivial-auto-var-init=zero`, `-fno-plt`. Build-on-target boxes may export `GCC_BUILD_MARCH=x86-64-v3` (or `native`) for a CPU baseline; default stays portable.
+Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it). `docs/compilation_steps.md` is the flag-stage reference.

@@ -1,0 +1,38 @@
+name: Security
+
+# The header-only utilities under GCC's static analyzer, as C11 and C++17, on push, PR and weekly.
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - "**"
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler-analyzer:
+    name: GCC static analyzer (-fanalyzer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: |
+          sudo apt-get -yqq update
+          sudo apt-get -yqq install build-essential
+      - run: |
+          for h in app/include/kyr/util/*.h; do
+            gcc -std=c11 -Wall -Wextra -fanalyzer -fsyntax-only -Iapp/include -x c "${h}"
+            g++ -std=c++17 -Wall -Wextra -fanalyzer -fsyntax-only -Iapp/include -x c++ "${h}"
+          done

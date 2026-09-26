@@ -1,0 +1,28 @@
+@startuml
+' claim: a build resolves every dependency from build/sysroot, verified by sha256, with no sudo
+actor Developer
+participant "utils/deps.sh\n(wrapper)" as W
+participant "~/.cache/rh-deps/debs" as Cache
+participant "GitHub Release" as GH
+participant "build/sysroot/share/kyr-build/deps.sh" as D
+participant "build/sysroot" as S
+Developer -> W : ./utils/deps.sh sysroot
+W -> W : read own kyr-build <ver> <repo> <sha256>
+alt cached
+  W -> Cache : kyr-build_<ver>_all.deb
+else
+  W -> GH : release v<ver> asset
+  GH --> Cache : kyr-build_<ver>_all.deb
+end
+W -> W : sha256 == pinned, else remove and refuse
+W -> S : dpkg-deb -x -> share/kyr-build
+W -> D : exec deps.sh sysroot (ROOT_DIR exported)
+loop every own line
+  D -> Cache : <pkg>_<ver>_<arch>.deb (download if absent)
+  D -> D : sha256 == pinned column
+  D -> S : extract include/ lib/ bin/ share/ into sysroot.new
+end
+D -> S : swap sysroot.new -> sysroot, write MANIFEST
+D --> Developer : export <NAME>_DEPS_INCLUDE_DIR, _LIB_DIR, KYR_BUILD_DIR, LD_LIBRARY_PATH
+Developer -> Developer : eval exports; ./utils/run_pipeline.sh
+@enduml

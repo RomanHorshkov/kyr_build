@@ -1,0 +1,49 @@
+name: Quality
+
+# kyr_build is tier 0 and cannot pin itself: its gate is its own pipeline (scripts parse, headers compile, debs build,
+# the integration tests prove the shipped tooling from the built deb). Also workflow_call so release.yml requires it.
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  pipeline:
+    name: Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install apt packages from deps.txt
+        run: |
+          sudo apt-get -yqq update
+          # shellcheck disable=SC2046
+          sudo apt-get -yqq install clang-format-18 $(awk '$1=="apt"{print $2}' deps.txt)
+          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-18 100
+      - run: ./utils/run_pipeline.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debs
+          if-no-files-found: error
+          path: |
+            build/debs/*.deb
+            build/debs/*.buildinfo
+            build/debs/SHA256SUMS
