@@ -1,0 +1,8 @@
+@startuml
+' claim: the public surface of kyr_word is one header and one library
+package "kyr_word" {
+  [kyr/word/word.h] as H
+  [libkyr_word.so.<major>] as L
+}
+H --> L : symbols in KYR_WORD_<major>
+@enduml

@@ -1,0 +1,28 @@
+name: Quality
+
+# The shared gate from cicd, kind app (profiles, tests per profile, ITs, package). Also workflow_call so release.yml requires it.
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    uses: RomanHorshkov/cicd/.github/workflows/c-quality.yml@v2
+    with:
+      kind: app
+    secrets:
+      SIBLING_REPOS_PAT: ${{ secrets.SIBLING_REPOS_PAT }}

@@ -1,0 +1,44 @@
+name: Security
+
+# GCC's static analyzer over every source: the audit profile carries -fanalyzer. Weekly as well, so a toolchain drift is caught without a commit.
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - "**"
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compiler-analyzer:
+    name: GCC static analyzer (-fanalyzer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install apt packages from deps.txt
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get -yqq update
+          # shellcheck disable=SC2046
+          sudo apt-get -yqq install $(awk '$1=="apt"{print $2}' deps.txt)
+      - name: Resolve dependencies into the sysroot (kyr-build bootstrapped by utils/deps.sh)
+        env:
+          GH_TOKEN: ${{ secrets.SIBLING_REPOS_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          ./utils/deps.sh sysroot
+          ./utils/deps.sh env --plain >> "$GITHUB_ENV"
+      - run: ./utils/build_libs.sh audit

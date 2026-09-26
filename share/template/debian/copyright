@@ -1,0 +1,9 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: kyr_word
+Upstream-Contact: <owner> <https://github.com/<owner>>
+Source: https://github.com/<owner>/kyr_word
+
+Files: *
+Copyright: <year> <owner>
+License: MIT
+ See LICENSE at the repository root.

@@ -1,0 +1,6 @@
+# deps.txt — everything a build of this repository needs that it does not contain (DEPENDENCIES.md).
+# kyr_build is tier 0: it pins nothing of ours (it cannot pin itself through the file it ships).
+apt     build-essential
+apt     dpkg-dev
+apt     binutils
+apt     libcmocka-dev             >=1.1.7

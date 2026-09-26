@@ -1,0 +1,8 @@
+# deps.txt — everything a build of this repository needs that it does not contain (DEPENDENCIES.md).
+#   apt     <package>   [>=ver]                                      Ubuntu package, minimum version optional
+#   own     <package>   <exact>   <owner/repo>  <sha256>  [optional]  .deb from that repository's GitHub Release v<exact>
+#   vendor  <name>      <exact>   app/extern/<name>                   verified by utils/vendor.sh
+apt     build-essential
+apt     pkg-config
+apt     libcmocka-dev             >=1.1.7
+own     kyr-build                 2.0.0      RomanHorshkov/Utils    <sha256 of kyr-build_2.0.0_all.deb>

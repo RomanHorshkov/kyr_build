@@ -110,11 +110,13 @@ kyr_build_tests() {
 
 kyr_run_tests() {
     kyr_select_profile "$1"
-    local exe rc=0
+    local exe rc=0 n=0
     for exe in "${KYR_BUILD_OUT}"/tests/*; do
         [[ -x "${exe}" ]] || continue
+        n=$((n + 1))
         printf 'RUN %s\n' "${exe}"
         "${exe}" || rc=1
     done
+    (( n == ${#KYR_TEST_SOURCES[@]} )) || { printf 'build.sh: %d test executable(s) for %d test source(s) (run build_tests.sh first)\n' "${n}" "${#KYR_TEST_SOURCES[@]}" >&2; return 1; }
     return "${rc}"
 }
