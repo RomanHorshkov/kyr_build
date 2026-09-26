@@ -32,13 +32,11 @@
 #   LDFLAGS
 #       Link-time policy: sanitizers, LTO, linker options.
 #
-# This file is designed to be copied into real projects. After copying it, the
-# first thing you should edit is the project customization section:
-#
-#   - language standard;
-#   - feature-test macros;
-#   - include paths;
-#   - profile lineup if the project has special needs.
+# This file ships in the kyr-build package (/usr/local/share/kyr-build/, or a
+# repository's build/sysroot/share/kyr-build/ through deps.sh sysroot). A
+# repository never edits a copy: it sources the shipped file through its thin
+# utils/gcc_build_profiles.sh wrapper and overrides what it must in its own
+# utils/<name>_project.sh (see "Project Overrides" near the end).
 #
 # Intended usage
 # --------------
@@ -331,8 +329,53 @@ CFLAGS_LANGUAGE=(
   -std=c11
 )
 
+# =============================================================================
+# MARK: Reproducibility
+# Reproducible-build policy (plan 4.1): the same clone in the same build root
+# gives the same bytes on any machine.
+# =============================================================================
+#
+# umask 022
+#     Staged files carry the mode install(1) gave them, never the caller's.
+#
+# SOURCE_DATE_EPOCH
+#     The one timestamp every tool is allowed to embed: dpkg-deb clamps the
+#     tar and ar members to it, tar --mtime takes it, gcc uses it for
+#     __DATE__/__TIME__. Taken from the commit being built (the tag's commit
+#     on a release) unless the caller already exported one.
+#
+# -ffile-prefix-map=<root>=.
+#     Every path the compiler records (DW_AT_comp_dir, DW_AT_name, __FILE__,
+#     .debug_line) is relative to the repository root, never /home/<user>/...
+#     -fdebug-prefix-map is the older, debug-info-only form; both are set so
+#     an object built with a compiler that only honours one still has none.
+#
+# GCC_BUILD_ARFLAGS (rcsD)
+#     D: deterministic archive members (uid 0, gid 0, mtime 0, mode 644).
+#
+umask 022
+
+GCC_BUILD_SOURCE_ROOT="${GCC_BUILD_SOURCE_ROOT:-${ROOT_DIR:-${PWD}}}"
+
+if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
+    if git -C "${GCC_BUILD_SOURCE_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        SOURCE_DATE_EPOCH="$(git -C "${GCC_BUILD_SOURCE_ROOT}" log -1 --format=%ct 2>/dev/null || true)"
+    fi
+    : "${SOURCE_DATE_EPOCH:=0}"
+fi
+export SOURCE_DATE_EPOCH
+export TZ=UTC
+
+CFLAGS_REPRODUCIBLE=(
+  -ffile-prefix-map="${GCC_BUILD_SOURCE_ROOT}=."
+  -fdebug-prefix-map="${GCC_BUILD_SOURCE_ROOT}=."
+)
+
+GCC_BUILD_ARFLAGS=(rcsD)
+
 CFLAGS_BASE=(
   "${CFLAGS_LANGUAGE[@]}"
+  "${CFLAGS_REPRODUCIBLE[@]}"
 )
 
 # =============================================================================
@@ -1717,6 +1760,41 @@ LDFLAGS_TSAN=(
 #   carry PIE / full RELRO / non-exec stack / canaries. Build scripts run it
 #   on release-profile artifacts; a red check fails the build.
 #
+# =============================================================================
+# MARK: Project Overrides
+# Per-project overrides: the catalog is the default, never a law
+# =============================================================================
+#
+# A repository sources this catalog and then its own utils/<name>_project.sh.
+# That file may extend or replace any array above with these helpers, or with
+# plain bash (CFLAGS_RELEASE+=(...), CFLAGS_RELEASE=(...)). The reason lives
+# in the project file next to the change.
+#
+#   gcc_build_add     CFLAGS_RELEASE -fno-plt              append flags
+#   gcc_build_drop    CFLAGS_RELEASE -fcf-protection=full  remove every match
+#   gcc_build_replace LDFLAGS_NATIVE -pie -Wl,-z,now       replace the whole array
+#
+gcc_build_add() {
+    local -n _gcc_build_arr="$1"; shift
+    _gcc_build_arr+=("$@")
+}
+
+gcc_build_drop() {
+    local -n _gcc_build_arr="$1"; shift
+    local kept=() flag drop keep
+    for flag in "${_gcc_build_arr[@]}"; do
+        keep=1
+        for drop in "$@"; do [[ "${flag}" == "${drop}" ]] && keep=0; done
+        (( keep )) && kept+=("${flag}")
+    done
+    _gcc_build_arr=("${kept[@]}")
+}
+
+gcc_build_replace() {
+    local -n _gcc_build_arr="$1"; shift
+    _gcc_build_arr=("$@")
+}
+
 # =============================================================================
 # MARK: CLI
 # Command-line interface
