@@ -17,3 +17,4 @@ KYR_TEST_LDLIBS=()
 KYR_PKG="libkyr-word"
 KYR_PKG_DESCRIPTION="kyr word library"
 KYR_INCLUDE_ROOT="kyr/word"
+# Build inputs (lib/epoch.sh) beyond app VERSION deps.txt utils debian, when a deb packages more: KYR_BUILD_INPUTS+=(web)

@@ -6,7 +6,7 @@ The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every
 
 | Package | Installs | Notes |
 |---|---|---|
-| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `lib/tier.sh`, `template/` |
+| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `lib/tier.sh`, `lib/epoch.sh`, `template/` |
 | `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
 | `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
 
@@ -30,7 +30,7 @@ Per-project flags live in `utils/<name>_project.sh`, sourced after the catalog: 
 
 ## Reproducible builds
 
-The catalog fixes `umask 022`, exports `SOURCE_DATE_EPOCH` from the commit being built and `TZ=UTC`, and puts `-ffile-prefix-map=<root>=.` and `-fdebug-prefix-map` in every profile; `GCC_BUILD_ARFLAGS` is `rcsD`. `lib/deb.sh` builds with `dpkg-deb --root-owner-group`, epoch-clamped mtimes and sorted tars (`deb_tar`), and writes one `<deb>.buildinfo` next to every deb (`buildinfo.sh`: hash, epoch, build-root hash, commit, flags, tool versions, pins). `build_root.sh` makes the pinned build root (`debootstrap` from `snapshot.ubuntu.com` at one date, hash recorded in `build/root.sha256`, entered with `unshare`/`chroot`); `create` and `hash` need root.
+The catalog fixes `umask 022`, exports `TZ=UTC` and `SOURCE_DATE_EPOCH` from the last commit that touched a build input (`lib/epoch.sh`: `app`, `VERSION`, `deps.txt`, `utils`, `debian` by default, extended by `KYR_BUILD_INPUTS+=(…)` in the project file; a caller's export wins), so a docs-, tests- or abi-only commit builds byte-identical debs, and puts `-ffile-prefix-map=<root>=.` and `-fdebug-prefix-map` in every profile; `GCC_BUILD_ARFLAGS` is `rcsD`. `lib/deb.sh` builds with `dpkg-deb --root-owner-group`, epoch-clamped mtimes and sorted tars (`deb_tar`), and writes one `<deb>.buildinfo` next to every deb (`buildinfo.sh`: hash, epoch, build-root hash, commit, flags, tool versions, pins). `build_root.sh` makes the pinned build root (`debootstrap` from `snapshot.ubuntu.com` at one date, hash recorded in `build/root.sha256`, entered with `unshare`/`chroot`); `create` and `hash` need root.
 
 ## This repository
 

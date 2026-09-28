@@ -101,6 +101,7 @@ Any line outside these five means the structure failed: stop and write the reque
    deb_copyright "${stage}" kyr-<word>-web
    deb_build "${stage}" kyr-<word>-web all
    ```
+   and add the tree to the build inputs in `utils/kyr_<word>_project.sh`, `KYR_BUILD_INPUTS+=(web)`: the debs' `SOURCE_DATE_EPOCH` is the time of the last commit that touched an input, so a docs- or tests-only commit rebuilds the same bytes.
 
 13. **Write the docs**: `docs/DOMAIN.md` (entities, relations, state machines, envs, the layout capture), `docs/RIGHTS.md`, `docs/WIRE.md` (every route under `/api/app/<word>/`, bodies, answers, errors, paging as io_rms: `limit` ∈ {10, 40, 80, 120}, opaque `after`, `{"items","has_more","next_after"}`, `400 cursor_invalid`), `docs/diagrams/*.puml` with one claim each (components, domain, rights, a request sequence, one state diagram per state machine, the seam), and a terse README, never hard-wrapped, with one line naming the diagrams.
 

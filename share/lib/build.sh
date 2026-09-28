@@ -23,6 +23,9 @@ KYR_BUILD_DIR="${KYR_BUILD_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CC="${CC:-gcc}"
 AR="${AR:-ar}"
 KYR_LIB_CPPFLAGS=("${KYR_LIB_CPPFLAGS[@]:--I${ROOT_DIR}/app/include}")
+# shellcheck source=epoch.sh
+source "${KYR_BUILD_DIR}/lib/epoch.sh"
+kyr_epoch_init "${ROOT_DIR}"   # again, now that the project file may have extended KYR_BUILD_INPUTS
 
 kyr_die() { printf 'build.sh: %s\n' "$*" >&2; exit 1; }
 

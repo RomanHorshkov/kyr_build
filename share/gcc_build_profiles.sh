@@ -341,8 +341,10 @@ CFLAGS_LANGUAGE=(
 # SOURCE_DATE_EPOCH
 #     The one timestamp every tool is allowed to embed: dpkg-deb clamps the
 #     tar and ar members to it, tar --mtime takes it, gcc uses it for
-#     __DATE__/__TIME__. Taken from the commit being built (the tag's commit
-#     on a release) unless the caller already exported one.
+#     __DATE__/__TIME__. Taken from the last commit that touched a build
+#     input (lib/epoch.sh: app, VERSION, deps.txt, utils, debian, plus the
+#     project file's KYR_BUILD_INPUTS additions) unless the caller already
+#     exported one: a docs- or tests-only commit builds the same bytes.
 #
 # -ffile-prefix-map=<root>=.
 #     Every path the compiler records (DW_AT_comp_dir, DW_AT_name, __FILE__,
@@ -357,14 +359,9 @@ umask 022
 
 GCC_BUILD_SOURCE_ROOT="${GCC_BUILD_SOURCE_ROOT:-${ROOT_DIR:-${PWD}}}"
 
-if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
-    if git -C "${GCC_BUILD_SOURCE_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        SOURCE_DATE_EPOCH="$(git -C "${GCC_BUILD_SOURCE_ROOT}" log -1 --format=%ct 2>/dev/null || true)"
-    fi
-    : "${SOURCE_DATE_EPOCH:=0}"
-fi
-export SOURCE_DATE_EPOCH
-export TZ=UTC
+# shellcheck source=lib/epoch.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/epoch.sh"
+kyr_epoch_init "${GCC_BUILD_SOURCE_ROOT}"
 
 CFLAGS_REPRODUCIBLE=(
   -ffile-prefix-map="${GCC_BUILD_SOURCE_ROOT}=."

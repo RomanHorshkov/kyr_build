@@ -3,7 +3,8 @@
 # deb.sh — the shared Debian packaging steps. A repository's utils/build_deb.sh sources it and calls, in order:
 #
 #   deb_init                                   VERSION -> DEB_VERSION DEB_MAJOR; DEB_ARCH; DEB_OUT_DIR (build/debs, emptied);
-#                                              SOURCE_DATE_EPOCH (kept if set, else the commit being built); umask 022;
+#                                              SOURCE_DATE_EPOCH (kept if the caller set it, else the last commit that
+#                                              touched a build input, lib/epoch.sh); umask 022;
 #                                              DEB_TIER from the "# tier: <n> <kind>" line of deps.txt (lib/tier.sh)
 #   deb_stage <pkg> [usr/local subdir ...]     fresh build/pkgroot/<pkg> with DEBIAN/ and the subdirs; prints its path
 #   deb_control <stage> <pkg> <section> <arch> <description> [Field: value ...]
@@ -27,6 +28,8 @@ KYR_BUILD_DIR="${KYR_BUILD_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 DEB_MAINTAINER="${DEB_MAINTAINER:-Roman Horshkov <https://github.com/RomanHorshkov>}"
 # shellcheck source=tier.sh
 source "${KYR_BUILD_DIR}/lib/tier.sh"
+# shellcheck source=epoch.sh
+source "${KYR_BUILD_DIR}/lib/epoch.sh"
 
 deb_die() { printf 'deb.sh: %s\n' "$*" >&2; exit 1; }
 
@@ -40,11 +43,7 @@ deb_init() {
     DEB_ARCH="$(dpkg --print-architecture)"
     DEB_OUT_DIR="${OUT_DIR:-${ROOT_DIR}/build/debs}"
     DEB_STAGE_ROOT="${ROOT_DIR}/build/pkgroot"
-    if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
-        SOURCE_DATE_EPOCH="$(git -C "${ROOT_DIR}" log -1 --format=%ct 2>/dev/null || true)"
-        : "${SOURCE_DATE_EPOCH:=0}"
-    fi
-    export SOURCE_DATE_EPOCH TZ=UTC
+    kyr_epoch_init "${ROOT_DIR}"
     command -v dpkg-deb >/dev/null 2>&1 || deb_die "dpkg-deb not found"
     rm -rf "${DEB_OUT_DIR}"
     install -d -m 0755 "${DEB_OUT_DIR}"

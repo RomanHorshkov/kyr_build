@@ -6,6 +6,7 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export ROOT_DIR KYR_BUILD_DIR="${ROOT_DIR}/share"
+KYR_BUILD_INPUTS=(app share VERSION deps.txt utils debian .clang-format)   # what the kyr-build and kyr-util debs are made of
 source "${KYR_BUILD_DIR}/lib/deb.sh"
 deb_init
 
