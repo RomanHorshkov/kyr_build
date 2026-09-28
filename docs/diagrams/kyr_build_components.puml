@@ -10,6 +10,7 @@ package "kyr-build (/usr/local/share/kyr-build or build/sysroot/share/kyr-build)
   [buildinfo.sh] as buildinfo
   [build_root.sh] as root
   [tiers.txt] as tiers
+  [lib/tier.sh] as tierlib
   [template/] as template
 }
 package "a repository" {
@@ -26,9 +27,12 @@ wgate --> gate : exec
 bdeb --> deblib : source
 bdeb --> buildlib : source
 deblib --> buildinfo : one .buildinfo per deb
-deps --> tiers : check --tiers
+deps --> tierlib : check --tiers: the declaration and every pin's X-Kyr-Tier
+deps --> tiers : cross-check (fixed repositories only)
+deblib --> tierlib : X-Kyr-Tier in every control file
 deps --> vendor : verify
 depstxt --> wdeps : own kyr-build <ver> <repo> <sha256>
+depstxt --> tierlib : # tier: <n> <kind>
 project --> catalog : gcc_build_add / drop / replace
 template ..> "a repository" : layout and wrappers (template_check.sh refuses drift)
 root ..> buildinfo : Build-Root hash

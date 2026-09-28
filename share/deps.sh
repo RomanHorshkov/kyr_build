@@ -6,8 +6,10 @@
 #   vendor <name> <ver> <path>                             verified by vendor.sh
 #
 # check     reports every line; exit 1 on any required drift. With build/sysroot/MANIFEST matching deps.txt the own
-#           lines pass without touching dpkg. --tiers also enforces the tier map (tiers.txt next to this file): a
-#           repository pins only repositories of a lower tier.
+#           lines pass without touching dpkg. --tiers also enforces the tier law (plan 2.1, lib/tier.sh): the repository
+#           declares its tier in deps.txt ("# tier: <n> <kind>"), every own pin must be of a strictly lower tier, read
+#           from the pinned deb's X-Kyr-Tier field; tiers.txt (the platform's fixed repositories only) cross-checks both,
+#           and stands in for a deb built before the field existed. A repository tiers.txt does not list is a product.
 # fetch     downloads every own deb into the cache (${RH_DEPS_CACHE:-~/.cache/rh-deps}/debs).
 # install   makes the machine match: apt for apt lines, apt install of the cached debs for own lines (needs sudo).
 #           The VM lane only; --downgrade is the one way to move a package down.
@@ -28,6 +30,8 @@ DEPS_FILE="${ROOT_DIR}/deps.txt"
 CACHE_DIR="${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}/debs"
 SYSROOT="${ROOT_DIR}/build/sysroot"
 TIERS_FILE="${KYR_TIERS_FILE:-${SCRIPT_DIR}/tiers.txt}"
+# shellcheck source=lib/tier.sh
+source "${SCRIPT_DIR}/lib/tier.sh"
 ARCH="$(dpkg --print-architecture)"
 die() { printf 'deps.sh: %s\n' "$*" >&2; exit 1; }
 [[ -f "${DEPS_FILE}" ]] || die "missing ${DEPS_FILE} (run through the repository's utils/deps.sh wrapper)"
@@ -131,21 +135,49 @@ sysroot_has() {  # pkg ver sha -> 0 if MANIFEST lists exactly this
 
 tiers_check() {
     [[ -f "${TIERS_FILE}" ]] || die "tier map not found: ${TIERS_FILE}"
-    local self self_tier dep dep_tier bad=0
+    local self decl self_tier self_kind map dep deb field dep_tier src bad=0
     self="$(repo_name)"
-    self_tier="$(tier_of "${self}")" || die "repository '${self}' is not in the tier map ${TIERS_FILE} (set KYR_REPO to its name)"
-    printf 'tiers: %s is tier %s\n' "${self}" "${self_tier}"
+    decl="$(kyr_tier_declared "${DEPS_FILE}")" || return 1
+    read -r self_tier self_kind <<< "${decl}"
+    printf 'tiers: %s declares tier %s (%s)\n' "${self}" "${self_tier}" "${self_kind}"
+    if map="$(tier_of "${self}")"; then
+        if [[ "${map}" == "${self_tier}" ]]; then
+            printf '  map     %-26s tier %s in the fixed map, agrees\n' "${self}" "${map}"
+        else
+            printf '  tier    %-26s tier %s in the fixed map, declared %s: VIOLATION\n' "${self}" "${map}" "${self_tier}"; bad=1
+        fi
+    elif [[ "${self_kind}" == product ]]; then
+        printf '  map     %-26s not in the fixed map: a product\n' "${self}"
+    else
+        printf '  tier    %-26s not in the fixed map, which lists every repository but products; declared %s: VIOLATION\n' "${self}" "${self_kind}"; bad=1
+    fi
     while read -r cls name ver rest; do
         [[ "${cls}" == own ]] || continue
         parse_own "${rest%%#*}"
         dep="${REPO##*/}"
-        if ! dep_tier="$(tier_of "${dep}")"; then
-            printf '  tier    %-26s %s is not in the tier map\n' "${name}" "${dep}"; bad=1; continue
+        if ! deb="$(download_own_deb "${name}" "${ver}" "${REPO}" "${SHA}" 2>/dev/null)"; then
+            if (( OPT )) && (( ! WITH_OPTIONAL )); then printf '  tier    %-26s optional, not resolved: skipped\n' "${name}"; continue; fi
+            printf '  tier    %-26s %s %s: the pinned deb cannot be read (run ./utils/deps.sh sysroot)\n' "${name}" "${ver}" "${REPO}"; bad=1; continue
+        fi
+        field="$(dpkg-deb -f "${deb}" X-Kyr-Tier 2>/dev/null || true)"
+        map=""; map="$(tier_of "${dep}")" || map=""
+        if [[ -n "${field}" ]]; then
+            if ! kyr_tier_valid "${field}"; then
+                printf '  tier    %-26s X-Kyr-Tier "%s" is malformed\n' "${name}" "${field}"; bad=1; continue
+            fi
+            dep_tier="${field%% *}"; src="X-Kyr-Tier ${field}"
+            if [[ -n "${map}" && "${map}" != "${dep_tier}" ]]; then
+                printf '  tier    %-26s %s says %s, the fixed map says %s for %s: VIOLATION\n' "${name}" "${src}" "${dep_tier}" "${map}" "${dep}"; bad=1; continue
+            fi
+        elif [[ -n "${map}" ]]; then
+            dep_tier="${map}"; src="fixed map, ${dep} (the deb predates X-Kyr-Tier)"
+        else
+            printf '  tier    %-26s %s carries no X-Kyr-Tier and %s is not in the fixed map: unknown tier\n' "${name}" "$(basename "${deb}")" "${dep}"; bad=1; continue
         fi
         if (( dep_tier < self_tier )); then
-            printf '  tier    %-26s %s tier %s ok\n' "${name}" "${dep}" "${dep_tier}"
+            printf '  tier    %-26s tier %s ok (%s)\n' "${name}" "${dep_tier}" "${src}"
         else
-            printf '  tier    %-26s %s tier %s VIOLATION: a repository pins only lower tiers\n' "${name}" "${dep}" "${dep_tier}"; bad=1
+            printf '  tier    %-26s tier %s (%s) VIOLATION: a repository pins only lower tiers\n' "${name}" "${dep_tier}" "${src}"; bad=1
         fi
     done < "${DEPS_FILE}"
     return "${bad}"

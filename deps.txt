@@ -1,3 +1,4 @@
+# tier: 0 build
 # deps.txt — everything a build of this repository needs that it does not contain (DEPENDENCIES.md).
 # kyr_build is tier 0: it pins nothing of ours (it cannot pin itself through the file it ships).
 apt     build-essential

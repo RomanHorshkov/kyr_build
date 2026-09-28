@@ -3,9 +3,12 @@
 # deb.sh — the shared Debian packaging steps. A repository's utils/build_deb.sh sources it and calls, in order:
 #
 #   deb_init                                   VERSION -> DEB_VERSION DEB_MAJOR; DEB_ARCH; DEB_OUT_DIR (build/debs, emptied);
-#                                              SOURCE_DATE_EPOCH (kept if set, else the commit being built); umask 022
+#                                              SOURCE_DATE_EPOCH (kept if set, else the commit being built); umask 022;
+#                                              DEB_TIER from the "# tier: <n> <kind>" line of deps.txt (lib/tier.sh)
 #   deb_stage <pkg> [usr/local subdir ...]     fresh build/pkgroot/<pkg> with DEBIAN/ and the subdirs; prints its path
 #   deb_control <stage> <pkg> <section> <arch> <description> [Field: value ...]
+#                                              every control file carries X-Kyr-Tier: <n> <kind>, what a consumer's
+#                                              deps.sh check --tiers reads as the tier of the pinned deb
 #   deb_depends_from_deps_txt [pkg ...]        the runtime Depends a library deb needs, derived from deps.txt: every
 #                                              own line that is a runtime package (not -dev, not kyr-build, not a
 #                                              header-only *-util-* package), as "pkg (>= ver)"; extra names appended
@@ -22,6 +25,8 @@
 ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 KYR_BUILD_DIR="${KYR_BUILD_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DEB_MAINTAINER="${DEB_MAINTAINER:-Roman Horshkov <https://github.com/RomanHorshkov>}"
+# shellcheck source=tier.sh
+source "${KYR_BUILD_DIR}/lib/tier.sh"
 
 deb_die() { printf 'deb.sh: %s\n' "$*" >&2; exit 1; }
 
@@ -31,6 +36,7 @@ deb_init() {
     DEB_VERSION="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
     [[ "${DEB_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || deb_die "VERSION '${DEB_VERSION}' is not MAJOR.MINOR.PATCH"
     DEB_MAJOR="${DEB_VERSION%%.*}"
+    DEB_TIER="$(kyr_tier_declared "${ROOT_DIR}/deps.txt")" || deb_die "every deb carries the tier of its repository: declare it in deps.txt"
     DEB_ARCH="$(dpkg --print-architecture)"
     DEB_OUT_DIR="${OUT_DIR:-${ROOT_DIR}/build/debs}"
     DEB_STAGE_ROOT="${ROOT_DIR}/build/pkgroot"
@@ -60,6 +66,7 @@ deb_control() {
             "${pkg}" "${DEB_VERSION}" "${section}" "${arch}" "${DEB_MAINTAINER}"
         local line
         for line in "$@"; do printf '%s\n' "${line}"; done
+        printf 'X-Kyr-Tier: %s\n' "${DEB_TIER:?deb_init first}"
         printf 'Description: %s\n' "${desc}"
     } > "${stage}/DEBIAN/control"
     chmod 0644 "${stage}/DEBIAN/control"

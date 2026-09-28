@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# The shipped template is a green repository out of the box: wrappers reach the sysroot copies, the pipeline passes,
-# and the same commit built in two different directories gives byte-identical debs (prefix maps, epoch, umask).
+# The shipped template is a green repository out of the box, as a new product kyr-build has never heard of: wrappers reach
+# the sysroot copies, the pipeline passes (tier stage included), and the same commit built in two different directories
+# gives byte-identical debs (prefix maps, epoch, umask).
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-A="${SCRATCH}/a/kyr_host"; B="${SCRATCH}/b/kyr_host"
+A="${SCRATCH}/a/kyr_zeta"; B="${SCRATCH}/b/kyr_zeta"
 instantiate "${A}"; instantiate "${B}"
 cd "${A}"
 ./utils/deps.sh sysroot > /dev/null

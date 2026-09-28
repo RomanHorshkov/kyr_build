@@ -1,8 +1,12 @@
+# tier: 5 product
 # deps.txt — everything a build of this repository needs that it does not contain (DEPENDENCIES.md).
+#   tier    the line above, exactly once: this repository's tier and kind (plan 2.1; build 0, foundation 1, platform 2,
+#           host 3, core 4, product 5, composition 6, platform-definition 7, fleet 8). Every deb carries it as X-Kyr-Tier;
+#           deps.sh check --tiers refuses a pin that is not of a strictly lower tier. A product keeps "5 product".
 #   apt     <package>   [>=ver]                                      Ubuntu package, minimum version optional
 #   own     <package>   <exact>   <owner/repo>  <sha256>  [optional]  .deb from that repository's GitHub Release v<exact>
 #   vendor  <name>      <exact>   app/extern/<name>                   verified by utils/vendor.sh
 apt     build-essential
 apt     pkg-config
 apt     libcmocka-dev             >=1.1.7
-own     kyr-build                 2.0.0      RomanHorshkov/Utils    <sha256 of kyr-build_2.0.0_all.deb>
+own     kyr-build                 2.0.2      RomanHorshkov/Utils    <sha256 of kyr-build_2.0.2_all.deb>

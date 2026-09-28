@@ -1,0 +1,18 @@
+@startuml
+' claim: a pin's tier comes from the pinned deb's own declaration; the fixed map only cross-checks, and never lists a product
+left to right direction
+rectangle "repository R\ndeps.txt: # tier: <n> <kind>" as R
+rectangle "lib/deb.sh\n(build_deb.sh of the pinned repository)" as DEB
+rectangle "pinned deb\nX-Kyr-Tier: <m> <kind>" as PIN
+rectangle "tiers.txt\nfixed platform repositories" as MAP
+rectangle "deps.sh check --tiers" as CHECK
+DEB --> PIN : copies its repository's declaration
+R --> CHECK : declared n
+PIN --> CHECK : m, from the cached deb (sha256-verified)
+MAP ..> CHECK : cross-check; stands in for a deb without the field
+CHECK --> R : every pin m < n, else VIOLATION
+note bottom of MAP
+  unlisted repository => may only declare "5 product";
+  a new product needs no line here
+end note
+@enduml
