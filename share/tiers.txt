@@ -15,6 +15,7 @@
 2 kyr_http DB_http
 2 kyr_jose DB_jose
 2 kyr_lmdb DB_lmdb
+2 kyr_apply
 3 kyr_host
 4 kyr_core DB_app
 6 kyr_server DB_server
