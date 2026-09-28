@@ -80,7 +80,7 @@ deb_depends_from_deps_txt() {
                 *-dev|kyr-build|*-util-*) continue ;;
             esac
             out+=("${name} (>= ${ver})")
-        done < <(awk '$1=="own"{print $2, $3}' "${ROOT_DIR}/deps.txt")
+        done < <(sed 's/#.*$//' "${ROOT_DIR}/deps.txt" | awk '$1=="own"{print $2, $3}')
     fi
     out+=("$@")
     local IFS=','

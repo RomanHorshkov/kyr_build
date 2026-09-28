@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build_deb.sh — build/debs/<pkg>_<ver>_<arch>.deb (runtime) and <pkg>-dev (headers, .a, .pc, linker symlink), SHA256SUMS,
+# build_deb.sh — build/debs/<pkg>_<ver>_<arch>.deb (runtime) and <pkg>-dev (app/include/**, .a, .pc, linker symlink), SHA256SUMS,
 # one .buildinfo per deb. Deterministic: the same commit gives the same bytes anywhere.
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,7 +23,7 @@ deb_build "${stage}" "${KYR_PKG}"
 stage="$(deb_stage "${KYR_PKG}-dev" lib lib/pkgconfig "include/${KYR_INCLUDE_ROOT}")"
 while IFS= read -r -d '' h; do
     install -D -m 0644 "${h}" "${stage}/usr/local/include/${h#${ROOT_DIR}/app/include/}"
-done < <(find "${ROOT_DIR}/app/include" -type f -name '*.h' -print0)
+done < <(find "${ROOT_DIR}/app/include" -type f -print0)   # every public file: headers and the .def tables they include
 install -m 0644 "${ROOT_DIR}/build/release/${LIB}.a" "${stage}/usr/local/lib/${LIB}.a"
 ln -sfn "${REAL}" "${stage}/usr/local/lib/${LIB}.so"
 cat > "${stage}/usr/local/lib/pkgconfig/${KYR_LIB}.pc" <<PC

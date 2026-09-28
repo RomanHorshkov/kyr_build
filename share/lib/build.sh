@@ -12,7 +12,7 @@
 #
 #   kyr_build_lib <profile>     build/<profile>/lib<X>.{a,so.<ver>} + soname and linker symlinks; release gated by check_hardening.sh
 #   kyr_build_bin <profile>     build/<profile>/<KYR_BIN>, PIE, release gated
-#   kyr_build_tests <profile>   build/<profile>/tests/<name> for every test source
+#   kyr_build_tests <profile>   build/<profile>/tests/<name> for every test source, nothing else left there
 #   kyr_run_tests <profile>     runs them; a failing test fails the call
 #
 # Objects are -fPIC (one object set serves the archive and the shared object); the archive is deterministic
@@ -99,7 +99,7 @@ kyr_build_bin() {
 kyr_build_tests() {
     kyr_version; kyr_select_profile "$1"
     local out="${KYR_BUILD_OUT}/tests" src name
-    mkdir -p "${out}"
+    rm -rf "${out}"; mkdir -p "${out}"   # only the sources listed now: a removed test leaves no executable behind
     for src in "${KYR_TEST_SOURCES[@]}"; do
         name="$(basename "${src}" .c)"
         printf 'CC+LD %s\n' "${out}/${name}"

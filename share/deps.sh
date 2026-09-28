@@ -34,6 +34,9 @@ TIERS_FILE="${KYR_TIERS_FILE:-${SCRIPT_DIR}/tiers.txt}"
 source "${SCRIPT_DIR}/lib/tier.sh"
 ARCH="$(dpkg --print-architecture)"
 die() { printf 'deps.sh: %s\n' "$*" >&2; exit 1; }
+# deps.txt without comments and blank lines: a `#` starts a comment anywhere on a line, so a trailing note is never read as
+# a version, a repository or a hash.
+deps_lines() { sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "${DEPS_FILE}"; }
 [[ -f "${DEPS_FILE}" ]] || die "missing ${DEPS_FILE} (run through the repository's utils/deps.sh wrapper)"
 cd -- "${ROOT_DIR}"
 export ROOT_DIR
@@ -179,7 +182,7 @@ tiers_check() {
         else
             printf '  tier    %-26s tier %s (%s) VIOLATION: a repository pins only lower tiers\n' "${name}" "${dep_tier}" "${src}"; bad=1
         fi
-    done < "${DEPS_FILE}"
+    done < <(deps_lines)
     return "${bad}"
 }
 
@@ -198,7 +201,7 @@ print_exports() {
 }
 
 case "${MODE}" in
-apt-list) awk '$1=="apt"{print $2}' "${DEPS_FILE}"; exit 0 ;;
+apt-list) deps_lines | awk '$1=="apt"{print $2}'; exit 0 ;;
 env)
     [[ -f "${SYSROOT}/MANIFEST" ]] || die "no sysroot at ${SYSROOT} (run: ./utils/deps.sh sysroot)"
     print_exports; exit 0 ;;
@@ -253,7 +256,7 @@ while read -r cls name ver rest; do
         ;;
     *) die "unknown class '${cls}' in deps.txt" ;;
     esac
-done < "${DEPS_FILE}"
+done < <(deps_lines)
 
 case "${MODE}" in
 check)
@@ -266,7 +269,7 @@ fetch)
         parse_own "${rest%%#*}"
         deb="$(download_own_deb "${name}" "${ver}" "${REPO}" "${SHA}")"
         printf '  cached: %s\n' "${deb}"
-    done < <(grep -E '^own' "${DEPS_FILE}")
+    done < <(deps_lines | grep -E '^own')
     ;;
 install)
     if (( ${#APT_TO_INSTALL[@]} )); then
@@ -279,7 +282,7 @@ install)
         deb="$(download_own_deb "${pkg}" "${ver}" "${repo}" "${sha}")"
         "${SUDO[@]}" env DEBIAN_FRONTEND=noninteractive apt-get -yqq install "${APT_FLAGS[@]}" "${deb}"
     done
-    if grep -qE '^vendor' "${DEPS_FILE}"; then "${SCRIPT_DIR}/vendor.sh" verify; fi
+    if deps_lines | grep -qE '^vendor'; then "${SCRIPT_DIR}/vendor.sh" verify; fi
     printf 'deps: machine now matches deps.txt\n'
     ;;
 sysroot)
@@ -302,12 +305,12 @@ sysroot)
             rm -rf "${tmp}"
             printf '%s %s %s\n' "${name}" "${ver}" "$(sha256sum "${deb}" | awk '{print $1}')" >> "${NEW}/MANIFEST"
             printf '  sysroot: %s %s\n' "${name}" "${ver}"
-        done < "${DEPS_FILE}"
+        done < <(deps_lines)
         # .pc files must point at the sysroot, not /usr/local
         if [[ -d "${NEW}/lib/pkgconfig" ]]; then sed -i "s|^prefix=.*|prefix=${SYSROOT}|" "${NEW}"/lib/pkgconfig/*.pc 2>/dev/null || true; fi
         rm -rf "${SYSROOT}"; mv "${NEW}" "${SYSROOT}"
     fi
-    if grep -qE '^vendor' "${DEPS_FILE}"; then "${SCRIPT_DIR}/vendor.sh" verify >/dev/null; fi
+    if deps_lines | grep -qE '^vendor'; then "${SCRIPT_DIR}/vendor.sh" verify >/dev/null; fi
     printf 'deps: sysroot ready at %s\n' "${SYSROOT}"
     print_exports
     ;;
