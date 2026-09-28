@@ -10,7 +10,7 @@ rc=0
 # .clang-format and quality.yml exist for compiled code.
 HAS_C=0
 if [[ -d "${ROOT_DIR}/app" ]] && find "${ROOT_DIR}/app" -name '*.c' -print -quit | grep -q .; then HAS_C=1; fi
-WRAPPERS=(utils/gcc_build_profiles.sh utils/check_hardening.sh utils/deps.sh utils/vendor.sh .clang-format)
+WRAPPERS=(utils/gcc_build_profiles.sh utils/check_hardening.sh utils/deps.sh utils/vendor.sh utils/check_abi.sh .clang-format)
 REQUIRED=(VERSION deps.txt LICENSE README.md .github/workflows/quality.yml)
 if (( ! HAS_C )); then
     printf '  note    no app/**/*.c: only utils/deps.sh, VERSION, deps.txt, LICENSE and README.md are required\n'
@@ -19,6 +19,7 @@ if (( ! HAS_C )); then
 fi
 for f in "${WRAPPERS[@]}"; do
     if [[ "${f}" == utils/vendor.sh && ! -d "${ROOT_DIR}/app/extern" && ! -f "${ROOT_DIR}/${f}" ]]; then continue; fi
+    if [[ "${f}" == utils/check_abi.sh && ! -f "${ROOT_DIR}/abi/layout.txt" && ! -f "${ROOT_DIR}/${f}" ]]; then continue; fi
     src="${TEMPLATE}/${f}"
     [[ "${f}" == .clang-format ]] && src="${SCRIPT_DIR}/.clang-format"
     if cmp -s "${src}" "${ROOT_DIR}/${f}"; then printf '  ok      %s\n' "${f}"

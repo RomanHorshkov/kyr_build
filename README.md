@@ -6,7 +6,7 @@ The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every
 
 | Package | Installs | Notes |
 |---|---|---|
-| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `lib/tier.sh`, `lib/epoch.sh`, `template/` |
+| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `lib/tier.sh`, `lib/epoch.sh`, `abi/` (`check_abi.sh`, `abi.py`), `template/` |
 | `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
 | `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
 
@@ -26,6 +26,8 @@ A new product (repository, descriptor, envs, rights, bundle, edition, platform l
 
 Tiers (plan §2.1): a repository declares its own in the first line of `deps.txt`, `# tier: <n> <kind>` (build 0, foundation 1, platform 2, host 3, core 4, product 5, composition 6, platform-definition 7, fleet 8); `lib/deb.sh` writes it into every deb as `X-Kyr-Tier`; `check --tiers` refuses any pin that is not of a strictly lower tier, reading the pin's tier from its deb. `share/tiers.txt` lists only the platform's fixed repositories, as a cross-check and for debs built before the field existed; a repository it does not list can only be a product, so adding a product changes nothing here.
 
+ABI gate (`share/abi/check_abi.sh`, lifted from DB_lmdb's `check_abi_layout.sh`, through the template's `utils/check_abi.sh`; pipeline stages `abi` and `abi-exports` when `abi/layout.txt` exists): the layout program is generated from the repository's public headers (a hand-written `abi/layout.c` is honoured and cross-checked), `abi/layout.txt` records every public struct's size, alignment and members, enumerator values, callbacks, function signatures, numeric `#define` constants and unnamed enums; SemVer against the newest reachable `v<x.y.z>` tag (else the previous commit), over the working tree and every commit that changed the file: a changed or removed line or a member added to an existing struct needs a raised major, a new public name a raised minor, a newly covered category nothing; `--exports` requires the library to export exactly the declared functions as `<name>@@<NODE>_<major>`. Needs gcc, readelf, python3 and full git history (`fetch-depth: 0`).
+
 Per-project flags live in `utils/<name>_project.sh`, sourced after the catalog: `gcc_build_add`, `gcc_build_drop`, `gcc_build_replace`. The catalog is the default, never a law.
 
 ## Reproducible builds
@@ -34,8 +36,8 @@ The catalog fixes `umask 022`, exports `TZ=UTC` and `SOURCE_DATE_EPOCH` from the
 
 ## This repository
 
-`./utils/run_pipeline.sh`: every script parses, every header compiles as C11 and C++17, the debs build, then `tests/ITs/` prove from the built deb that a second build is byte-identical, that the template repository is green out of the box and builds the same deb from two directories, that the wrapper refuses a wrong sha256, and that the tier law holds from declarations alone (a new product passes untouched, a product pinning a product is refused). `./utils/build_deb.sh` alone writes `build/debs/` with `SHA256SUMS`.
+`./utils/run_pipeline.sh`: every script parses, every header compiles as C11 and C++17, the debs build, then `tests/ITs/` prove from the built deb that a second build is byte-identical, that the template repository is green out of the box and builds the same deb from two directories, that the wrapper refuses a wrong sha256, and that the tier law holds from declarations alone (a new product passes untouched, a product pinning a product is refused), that a docs-only commit keeps the debs byte-identical, and that the ABI gate on a scratch library refuses every unversioned ABI change. `./utils/build_deb.sh` alone writes `build/debs/` with `SHA256SUMS`.
 
 Release: master green, signed tag `v<VERSION>`, `release.yml` (cicd `c-release`, double build on two runners). Consumers pin the new version with the sha256 from `SHA256SUMS`.
 
-Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from). `docs/compilation_steps.md` is the flag-stage reference.
+Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from), `docs/diagrams/abi_gate.puml` (what an ABI change needs). `docs/compilation_steps.md` is the flag-stage reference.

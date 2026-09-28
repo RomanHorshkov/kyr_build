@@ -1,4 +1,4 @@
-KYR_WORD_1 {
+KYR_WORD_0 {
     global: kyr_word_*;
     local: *;
 };

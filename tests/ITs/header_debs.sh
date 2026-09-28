@@ -11,7 +11,7 @@ has './usr/local/include/utils/string_view.h' dpkg-deb -c "${d}" || fail "utils 
 has 'rh-util-string-view' dpkg-deb -f "${d}" Replaces || fail "Replaces"
 [[ -f "${DEBS}/rh-util-string-view_${VER}_all.deb" ]] || fail "rh-util-string-view no longer built"
 has './usr/local/include/utils/memory_macros.h' dpkg-deb -c "${DEBS}/rh-util-memory-macros_${VER}_all.deb" || fail "rh-util path"
-for p in VERSION deps.sh gcc_build_profiles.sh check_hardening.sh vendor.sh buildinfo.sh build_root.sh tiers.txt lib/deb.sh lib/build.sh lib/tier.sh lib/epoch.sh template/utils/deps.sh template/.clang-format .clang-format; do
+for p in VERSION deps.sh gcc_build_profiles.sh check_hardening.sh vendor.sh buildinfo.sh build_root.sh tiers.txt lib/deb.sh lib/build.sh lib/tier.sh lib/epoch.sh abi/check_abi.sh abi/abi.py template/utils/deps.sh template/utils/check_abi.sh template/.clang-format .clang-format; do
     has "./usr/local/share/kyr-build/${p}\$" dpkg-deb -c "${KYR_DEB}" || fail "kyr-build lacks ${p}"
 done
 [[ "$(dpkg-deb -f "${KYR_DEB}" Architecture)" == all ]] || fail "kyr-build must be arch all"

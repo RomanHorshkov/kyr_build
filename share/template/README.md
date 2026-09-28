@@ -6,6 +6,8 @@ Build: `./utils/deps.sh sysroot && eval "$(./utils/deps.sh env)" && ./utils/run_
 
 Template drift (`template_check.sh`, a CI gate): the four wrappers and `.clang-format` are byte-identical to the template; `VERSION`, `deps.txt`, `LICENSE`, `README.md` and `quality.yml` exist. A repository with no C under `app/` (a web shell, a manifest) keeps only `utils/deps.sh` (and `utils/vendor.sh` when it vendors); the catalog, the gate, `.clang-format` and `quality.yml` are not required there.
 
+ABI (optional, a library consumers link): `./utils/check_abi.sh --update` writes `abi/layout.txt` from the public headers (every struct's layout, enumerator values, #define constants, callbacks, function signatures); from then on the pipeline refuses a changed or removed line without a raised major, a new public name without a raised minor (against the last `v<x.y.z>` tag), and a library that does not export exactly the declared functions as `<name>@@<NODE>_<major>`. What is public: `KYR_ABI_*` in the project file (defaults from `KYR_LIB`).
+
 Release: master green, signed tag `v<VERSION>`, `release.yml` publishes the debs, `SHA256SUMS` and one `.buildinfo` per deb.
 
 Diagrams: `docs/diagrams/word_components.puml` (public surface), `docs/diagrams/word_sequence.puml` (main flow).

@@ -1,0 +1,22 @@
+@startuml
+' claim: what an ABI change needs is decided by comparing abi/layout.txt with the last release, line by line
+start
+:headers under app/include/<root> -> gcc -g -aux-info -> DWARF + declarations;
+:generated layout program (or abi/layout.c) + sections + #define constants + unnamed enums;
+:abi/layout.txt as the gate writes it now;
+if (differs from the committed file?) then (yes)
+  :refused: say which raise, then --update;
+  stop
+endif
+:compare with the file at the newest reachable tag v<x.y.z> (else the previous commit),\nthen every commit that changed it, each with its own VERSION;
+if (an existing line changed or removed,\nor a member added to an existing struct) then (yes)
+  :needs a raised MAJOR;
+elseif (new names in covered categories) then (yes)
+  :needs a raised MINOR;
+elseif (only new categories) then (yes)
+  :tooling change: nothing to raise;
+else (identical)
+endif
+:--exports: the .so exports exactly the declared functions as name@@NODE_major;
+stop
+@enduml

@@ -25,7 +25,7 @@ Any line outside these five means the structure failed: stop and write the reque
 
 1. **Name it** (NAMING.md). Module-based: repository `kyr_<word>`, C prefix `kyr_<word>_`, types `kyr_<word>_<thing>_t`, constants and macros `KYR_<WORD>_…`, include root `app/include/kyr/<word>/`, packages `libkyr-<word>`, `libkyr-<word>-dev`, `kyr-<word>-web`, linker map `utils/kyr_<word>.map`, envs `<word>.<name>`, capabilities `<word>.<object>.<verb>`, error tokens lowercase snake case, routes under `/api/app/<word>/`, bundle id, view prefix `<word>_` and edition name `<word>`, edition binary `kyr-server-<word>`. Process-based: the brand everywhere (`io_rms`, `iorms_`, `io-rms-server`). The word is `[a-z][a-z0-9]*`, not a vocabulary word of NAMING.md, not an existing repository word.
 
-2. **Choose the shape.** Module-based unless one of these holds, then process-based: the server code is not C against the core's contract (another language, an existing program with its own kernel or CLI); it needs its own process model (long computations, its own threads or event loop, blocking I/O); or it must crash and restart without taking identity down. Product separation is total in both shapes; the shape only decides how a request arrives: through the core's router (module) or through nginx `auth_request` against `GET /api/app/authz` with `X-Auth-*` headers (process). Steps 3 to 19 are the module path; step 20 lists the process-based differences.
+2. **Choose the shape.** Module-based unless one of these holds, then process-based: the server code is not C against the core's contract (another language, an existing program with its own kernel or CLI); it needs its own process model (long computations, its own threads or event loop, blocking I/O); or it must crash and restart without taking identity down. Product separation is total in both shapes; the shape only decides how a request arrives: through the core's router (module) or through nginx `auth_request` against `GET /api/app/authz` with `X-Auth-*` headers (process). Steps 3 to 20 are the module path; step 21 lists the process-based differences.
 
 3. **Create the repository from the template shipped in the pinned kyr-build deb** (the source tree `kyr_build/share/template/` lacks `.clang-format`, which the deb adds). The `init` commit on master is the pristine template, so `git diff master` on `restructuring` is exactly the product:
    ```
@@ -37,7 +37,7 @@ Any line outside these five means the structure failed: stop and write the reque
    git init -b master && git add -A && git commit -m init && git checkout -b restructuring
    ```
 
-4. **Rename the template word**, files then contents, and give the linker map the soname major (`0` while VERSION is `0.x`):
+4. **Rename the template word**, files then contents (the linker map's node becomes `KYR_<WORD>_0`, the soname major while VERSION is `0.x`):
    ```
    git mv app/include/kyr/word app/include/kyr/<word>
    git mv app/include/kyr/<word>/word.h app/include/kyr/<word>/<word>.h
@@ -49,7 +49,6 @@ Any line outside these five means the structure failed: stop and write the reque
    grep -rlI 'word' --exclude-dir=.git . | xargs sed -i -e 's/KYR_WORD_WORD_H/KYR_<WORD>_<WORD>_H/g' \
        -e 's/kyr_word/kyr_<word>/g; s/KYR_WORD/KYR_<WORD>/g; s/kyr-word/kyr-<word>/g; s#kyr/word#kyr/<word>#g; s/kyr word/kyr <word>/g' \
        -e 's/\bword\([._]\)/<word>\1/g'
-   sed -i 's/KYR_<WORD>_1/KYR_<WORD>_0/' utils/kyr_<word>.map
    git grep -n -i 'word'                     # only the README's first line (prose) may remain; rewrite it
    ```
    LICENSE and `debian/copyright`: products are proprietary; copy `$WS/kyr_host/LICENSE` and fill `debian/copyright` (Upstream-Name `kyr_<word>`, the owner, `License: Proprietary`). VERSION stays `0.1.0` until the first release.
@@ -113,9 +112,11 @@ Any line outside these five means the structure failed: stop and write the reque
    ```
    Done only at `pipeline GREEN`. One commit per step, message = what the change is.
 
-15. **Hand off** after the last commit (the debs' bytes depend on the commit time): `./utils/build_deb.sh && cp build/debs/*.deb ~/.cache/rh-deps/debs/ && cat build/debs/SHA256SUMS`, and give consumers the pin lines. Bump VERSION (SemVer) on any API or ABI change; a new record layout is a new `ver`, never an edit of an old one.
+15. **Freeze the ABI** once another repository pins the `-dev` deb: `./utils/check_abi.sh --update`, commit `abi/layout.txt` (a first layout needs no raise). From then on the pipeline's `abi` stage refuses, against the last `v<x.y.z>` tag, a changed or removed line or a member added to an existing struct without a raised major (raise VERSION's major and the linker map's node `KYR_<WORD>_<major>` together) and a new public name without a raised minor; `abi-exports` requires the library to export exactly the declared functions. What is public comes from `KYR_ABI_*` in the project file, defaulting to the `kyr_<word>_` prefix.
 
-16. **The edition directory** (kyr_server, today DB_server; its owner makes the change, you send the files):
+16. **Hand off** after the last commit (the debs' bytes depend on the last commit that touched a build input): `./utils/build_deb.sh && cp build/debs/*.deb ~/.cache/rh-deps/debs/ && cat build/debs/SHA256SUMS`, and give consumers the pin lines. Bump VERSION (SemVer) on any API or ABI change; a new record layout is a new `ver`, never an edit of an old one.
+
+17. **The edition directory** (kyr_server, today DB_server; its owner makes the change, you send the files):
    ```
    editions/<word>/modules.c      the module array { &kyr_drive_module, &kyr_<word>_module } and the seam adapter over drive's API
    editions/<word>/main.c         kyr_<word>_rooms_bind(&ROOMS_ON_DRIVE); return kyr_host_main(argc, argv, kyr_core_app(MODULES, n));
@@ -127,9 +128,9 @@ Any line outside these five means the structure failed: stop and write the reque
    ```
    Check the edition.def before sending it with both parsers: `bash -c 'source $WS/DB_server/utils/lib/edition.sh && edition_load edition.def'` and `bash -c 'cd $WS/kyr_fleet && source lib/parse.sh && source lib/manifest.sh && edition_load <abs path>'`. In the edition repository: pin `libkyr-<word>-dev` and `kyr-<word>-web` with sha256, then `./utils/gen_edition.sh <word> && ./utils/check_editions.sh && ./utils/run_pipeline.sh`.
 
-17. **The product line in the platform repository** (DB → kyr; its owner makes the change): `products/<word>/edition.def` and `site.schema` byte-identical to the edition's, `products/<word>/product.manifest` (`PRODUCT_STATE=planned` until the first bundle ships, `MODULES` with the kernel modules, the reused module and `<word>`, `WEB_BUNDLES="shell <word>"`, `PACKAGES="kyr-server-<word> kyr-<word>-web"`), `modules/<word>/module.manifest` (`TIER=vertical`, `REQUIRES` kernel modules only, `CAPABILITY` = every label of `caps.def`, `ENVS`, `WEB_BUNDLE`), the pins in `deps.txt`; then `./dbctl product validate <word> && ./ops/check_all.sh`. Try it first on a scratch copy (`git -C $WS/DB ls-files -z | tar --null -T - -cf - | tar -C <scratch> -xf -`).
+18. **The product line in the platform repository** (DB → kyr; its owner makes the change): `products/<word>/edition.def` and `site.schema` byte-identical to the edition's, `products/<word>/product.manifest` (`PRODUCT_STATE=planned` until the first bundle ships, `MODULES` with the kernel modules, the reused module and `<word>`, `WEB_BUNDLES="shell <word>"`, `PACKAGES="kyr-server-<word> kyr-<word>-web"`), `modules/<word>/module.manifest` (`TIER=vertical`, `REQUIRES` kernel modules only, `CAPABILITY` = every label of `caps.def`, `ENVS`, `WEB_BUNDLE`), the pins in `deps.txt`; then `./dbctl product validate <word> && ./ops/check_all.sh`. Try it first on a scratch copy (`git -C $WS/DB ls-files -z | tar --null -T - -cf - | tar -C <scratch> -xf -`).
 
-18. **Build a bundle** (workstation, from the cache, no network). The web root, with the real shell:
+19. **Build a bundle** (workstation, from the cache, no network). The web root, with the real shell:
    ```
    dpkg-deb -x ~/.cache/rh-deps/debs/kyr-shell_<ver>_all.deb sh && dpkg-deb -x ~/.cache/rh-deps/debs/kyr-<word>-web_<ver>_all.deb wb
    SOURCE_DATE_EPOCH=<platform tag commit time> $WS/kyr_shell/utils/compose_web.sh --shell sh/usr/local/share/kyr/shell \
@@ -138,9 +139,9 @@ Any line outside these five means the structure failed: stop and write the reque
    ```
    Then the bundle, once the edition binary's deb is pinned in the platform: `SOURCE_DATE_EPOCH=… $WS/kyr_fleet/bin/kyr-bundle build --edition <word> --from $WS/DB/deps.txt --cache ~/.cache/rh-deps/debs --editions-dir $WS/DB_server/editions --calver YYYY.MM.0 --seq 1 --web-root web --out bundles`, twice, hashes compared, then `kyr-bundle verify` and `fleet bundle sign … --namespace kyr-candidate`.
 
-19. **The VM lane** (the owner; needs the VM): `fleet machine add vm rh@<vm> --edition <word> --environment test --channel candidate` → `fleet machine enroll vm` → `fleet provision vm` → `fleet site-env vm --bundle <b>` → `fleet plan vm --bundle <b>` → `fleet apply vm --plan <id>` → `fleet status vm`; then the platform's black-box suite, `tests/upgrade/run_matrix.sh` and `tests/restore/run_drill.sh`. For a client: one overlay per machine in kyr_fleet_inventory (checklist line 4).
+20. **The VM lane** (the owner; needs the VM): `fleet machine add vm rh@<vm> --edition <word> --environment test --channel candidate` → `fleet machine enroll vm` → `fleet provision vm` → `fleet site-env vm --bundle <b>` → `fleet plan vm --bundle <b>` → `fleet apply vm --plan <id>` → `fleet status vm`; then the platform's black-box suite, `tests/upgrade/run_matrix.sh` and `tests/restore/run_drill.sh`. For a client: one overlay per machine in kyr_fleet_inventory (checklist line 4).
 
-20. **Process-based differences**: the repository implements the host descriptor (`kyr_host_main(argc, argv, &APP)`, pin `libkyr-host-dev`), mounts beside the core (`/api/<word>`), takes identity only from `X-Auth-User`, `X-Auth-Role`, `X-Auth-State`, `X-Auth-Session` (a request without them is `500 server_error`, never `401`), owns exactly one env `<brand>.main`, and its `edition.def` process has `AUTH_REQUEST=yes`. The edition's `modules.c` is `{ }` when no module product shares the box.
+21. **Process-based differences**: the repository implements the host descriptor (`kyr_host_main(argc, argv, &APP)`, pin `libkyr-host-dev`), mounts beside the core (`/api/<word>`), takes identity only from `X-Auth-User`, `X-Auth-Role`, `X-Auth-State`, `X-Auth-Session` (a request without them is `500 server_error`, never `401`), owns exactly one env `<brand>.main`, and its `edition.def` process has `AUTH_REQUEST=yes`. The edition's `modules.c` is `{ }` when no module product shares the box.
 
 ## Known failures (the structure against bar test 1), each a request in `$WS/_notes/kyr_estate.md`
 
