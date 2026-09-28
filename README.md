@@ -22,6 +22,8 @@ Headers: `memory_macros.h`, `preprocessor_macros.h`, `string_view.h`, `time_macr
 ./utils/gcc_build_profiles.sh explain
 ```
 
+A new product (repository, descriptor, envs, rights, bundle, edition, platform line): `share/template/NEW_PRODUCT.md`.
+
 Per-project flags live in `utils/<name>_project.sh`, sourced after the catalog: `gcc_build_add`, `gcc_build_drop`, `gcc_build_replace`. The catalog is the default, never a law.
 
 ## Reproducible builds
