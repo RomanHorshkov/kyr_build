@@ -15,7 +15,7 @@
 #
 # The rule, against the last release (the newest tag v<x.y.z> reachable; without one, the previous commit):
 #   an existing line changed or removed, or a member added to an existing struct   needs a raised MAJOR
-#   new names in categories the file already covers                                needs a raised MINOR (or MAJOR)
+#   new names in categories the file already covers, or a *_ABI_MINOR that only rose needs a raised MINOR (or MAJOR)
 #   only lines of categories the file did not cover (a gate that learned more)     needs nothing (a tooling change)
 # Applied by --update, to the working tree and to every commit that changed abi/layout.txt.
 #
@@ -201,7 +201,7 @@ if ! cmp -s "${OUT}/layout.txt" "${LAYOUT}"; then
     case "${verdict%%$'\n'*}" in
         identical) die "only a comment line differs from what the gate writes: run --update" ;;
         tooling) die "the gate now covers new categories: run --update (a tooling change, no raise needed)" ;;
-        minor) die "the public API grew (new names): raise VERSION's minor against the last release, then --update" ;;
+        minor) die "the public API grew (new names, or a raised *_ABI_MINOR): raise VERSION's minor against the last release, then --update" ;;
         *) die "the public ABI changed without a major bump: raise VERSION's major, then --update" ;;
     esac
 fi

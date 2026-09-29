@@ -11,7 +11,7 @@ endif
 :compare with the file at the newest reachable tag v<x.y.z> (else the previous commit),\nthen every commit that changed it, each with its own VERSION;
 if (an existing line changed or removed,\nor a member added to an existing struct) then (yes)
   :needs a raised MAJOR;
-elseif (new names in covered categories) then (yes)
+elseif (new names in covered categories,\nor a *_ABI_MINOR constant that only rose) then (yes)
   :needs a raised MINOR;
 elseif (only new categories) then (yes)
   :tooling change: nothing to raise;

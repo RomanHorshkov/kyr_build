@@ -28,11 +28,46 @@ def category(line):
     return {'field': 'struct', 'bits': 'struct', 'value': 'enum'}.get(f[0], f[0])
 
 
+RANK = {'identical': 0, 'tooling': 1, 'minor': 2, 'major': 3}
+
+
+def abi_minor_raised(old, new):
+    """`constant <NAME>_ABI_MINOR <n>` lines present in both files with a larger value in new."""
+    def values(lines):
+        out = {}
+        for line in lines:
+            f = line.split()
+            if len(f) == 3 and f[0] == 'constant' and f[1].endswith('_ABI_MINOR') and f[2].lstrip('-').isdigit():
+                out[f[1]] = (line, int(f[2]))
+        return out
+    ov, nv = values(old), values(new)
+    return [(n, ov[n], nv[n]) for n in sorted(ov) if n in nv and nv[n][1] > ov[n][1]]
+
+
 def classify(old_path, new_path):
     """SemVer on the ABI: an existing line changed or removed, or a member added to an existing struct, is a major; new names in
-    categories the old file covers are a minor; lines only of categories it did not cover are a tooling change."""
+    categories the old file covers, or a `*_ABI_MINOR` constant that only rose, are a minor; lines only of categories the old
+    file did not cover are a tooling change."""
     strip = lambda p: [l for l in open(p).read().splitlines() if category(l) not in ('comment', 'blank')]
     old, new = strip(old_path), strip(new_path)
+    raised = abi_minor_raised(old, new)
+    if raised:
+        gone = {o[0] for _, o, _ in raised} | {n[0] for _, _, n in raised}
+        new = [l for l in new if l not in gone]
+        verdict, reason = classify_lines([l for l in old if l not in gone], new, old)
+        if RANK[verdict] < RANK['minor']:
+            verdict, reason = 'minor', ''
+        reason += ''.join(f'\n  ABI minor raised: {n} {o[1]} -> {v[1]}' for n, o, v in raised)
+        print(verdict)
+        print(reason.lstrip('\n'))
+        return 0
+    verdict, reason = classify_lines(old, new)
+    print(verdict)
+    print(reason)
+    return 0
+
+
+def classify_lines(old, new, covered_by=None):
     j, kept = 0, []
     for line in new:
         if j < len(old) and line == old[j]:
@@ -41,31 +76,22 @@ def classify(old_path, new_path):
         else:
             kept.append(False)
     if j != len(old):
-        print('major')
-        print(f'  existing line changed or removed: {old[j]!r}')
-        return 0
+        return 'major', f'  existing line changed or removed: {old[j]!r}'
     in_old_struct = False
     for line, k in zip(new, kept):
         if line.startswith('struct '):
             in_old_struct = k
         elif line.startswith(('  field ', '  bits ')) and not k and in_old_struct:
-            print('major')
-            print(f'  member added to an existing struct: {line.strip()!r}')
-            return 0
+            return 'major', f'  member added to an existing struct: {line.strip()!r}'
     added = [l for l, k in zip(new, kept) if not k]
     if not added:
-        print('identical')
-        return 0
-    covered = {category(l) for l in old}
+        return 'identical', ''
+    covered = {category(l) for l in (covered_by or old)}
     grown = sorted({category(l) for l in added} & covered)
     if grown:
         first = next(l for l in added if category(l) in covered).strip()
-        print('minor')
-        print('  new names in covered categories: ' + ', '.join(grown) + f' (first: {first})')
-    else:
-        print('tooling')
-        print('  new categories: ' + ', '.join(sorted({category(l) for l in added})))
-    return 0
+        return 'minor', '  new names in covered categories: ' + ', '.join(grown) + f' (first: {first})'
+    return 'tooling', '  new categories: ' + ', '.join(sorted({category(l) for l in added}))
 
 
 DIE_RE = re.compile(r'^\s*<(\d+)><([0-9a-f]+)>: Abbrev Number: \d+ \((DW_TAG_\w+)\)')
