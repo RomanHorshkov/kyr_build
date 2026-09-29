@@ -101,6 +101,8 @@ def load_dwarf(path):
                 cur['bit_offset'] = v
             elif k == 'DW_AT_declaration':
                 cur['declaration'] = True
+            elif k == 'DW_AT_prototyped':
+                cur['prototyped'] = True
     return dies
 
 
@@ -158,6 +160,55 @@ class Dwarf:
             return self.tname(t.get('type')) + ' (' + ', '.join(self.params_of(t)) + ')'
         return t.get('name', '<anonymous>')
 
+    def strip_cv(self, off):
+        t = self.dies.get(off)
+        while t is not None and t['tag'] in ('DW_TAG_const_type', 'DW_TAG_volatile_type'):
+            t = self.dies.get(t.get('type'))
+        return t
+
+    def function_pointer(self, member):
+        """The member's type when it is written as a pointer to a function (not through a typedef), else None."""
+        t = self.strip_cv(member.get('type'))
+        if t is None or t['tag'] != 'DW_TAG_pointer_type':
+            return None
+        target = self.strip_cv(t.get('type'))
+        return t if target is not None and target['tag'] == 'DW_TAG_subroutine_type' else None
+
+    def ctype(self, off, inner=''):
+        """A type as C writes it (`const char*`, `int (*)(void*, size_t)`); inner is the declarator built so far."""
+        t = self.dies.get(off)
+        if t is None:
+            return 'void' + inner
+        tag = t['tag']
+        if tag in ('DW_TAG_const_type', 'DW_TAG_volatile_type'):
+            q = 'const' if tag == 'DW_TAG_const_type' else 'volatile'
+            target = self.dies.get(t.get('type'))
+            if target is not None and target['tag'] == 'DW_TAG_pointer_type':
+                return self.ctype(t.get('type'), ' ' + q + inner)
+            return q + ' ' + self.ctype(t.get('type'), inner)
+        if tag == 'DW_TAG_pointer_type':
+            target = self.strip_cv(t.get('type'))
+            if target is not None and target['tag'] == 'DW_TAG_subroutine_type':
+                return self.ctype(t.get('type'), '(*' + inner + ')')
+            return self.ctype(t.get('type'), '*' + inner)
+        if tag == 'DW_TAG_array_type':
+            return self.ctype(t.get('type'), inner + '[]')
+        if tag == 'DW_TAG_subroutine_type':
+            params = [self.ctype(self.dies[k].get('type')) for k in t['kids'] if self.dies[k]['tag'] == 'DW_TAG_formal_parameter']
+            if any(self.dies[k]['tag'] == 'DW_TAG_unspecified_parameters' for k in t['kids']):
+                params.append('...')
+            if not params and t.get('prototyped'):
+                params = ['void']
+            return self.ctype(t.get('type'), ' ' + inner + '(' + ', '.join(params) + ')').replace('  ', ' ')
+        name = t.get('name', '<anonymous>')
+        if tag == 'DW_TAG_structure_type':
+            name = 'struct ' + name
+        elif tag == 'DW_TAG_union_type':
+            name = 'union ' + name
+        elif tag == 'DW_TAG_enumeration_type':
+            name = 'enum ' + name
+        return name + inner
+
     def members(self, t, path=''):
         """(designator, kind, dwarf die) for every member, anonymous or anonymous-typed aggregates flattened."""
         out = []
@@ -189,12 +240,18 @@ def program(dwarf, type_prefix, out_c, headers):
         lines.append(f'    printf("type {n} size %zu\\n", sizeof({n}));')
     for n in sorted(d.structs):
         lines.append(f'    printf("struct {n} size %zu align %zu\\n", sizeof({n}), alignof({n}));')
-        for designator, kind, m in d.members(d.structs[n]):
+        members = d.members(d.structs[n])
+        for designator, kind, m in members:
             if kind == 'bits':
                 lines.append(f'    printf("  bits {designator} offset {m.get("bit_offset", "?")} width {m["bits"]}\\n");')
             else:
                 lines.append(f'    printf("  field {designator} offset %zu size %zu\\n", offsetof({n}, {designator}), '
                              f'sizeof((({n}*)0)->{designator}));')
+        for designator, kind, m in members:
+            fp = d.function_pointer(m) if kind == 'field' else None
+            if fp is not None:
+                sig = d.ctype(m.get('type')).replace('\\', '\\\\').replace('"', '\\"')
+                lines.append(f'    printf("%s\\n", "  signature {designator} {sig}");')
     lines += ['    return 0;', '}', '']
     open(out_c, 'w').write('\n'.join(lines))
     return 0

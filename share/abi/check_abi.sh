@@ -4,7 +4,8 @@
 # abi/layout.txt exists.
 #
 #   abi/layout.txt   the committed ABI: the data model; every public scalar type's size; every public struct's size, alignment and
-#                    each member's offset and size (bit-fields by bit offset and width); every public enum's enumerator values;
+#                    each member's offset and size (bit-fields by bit offset and width), and every member written as a function pointer with
+#                    its full signature (`  signature <member> <type>`); every public enum's enumerator values;
 #                    every public callback's signature; every function the public headers declare (return type, parameter types);
 #                    every numeric <CONST_PREFIX>* #define; every enumerator of an unnamed public enum. A `major` line records
 #                    VERSION's major.
