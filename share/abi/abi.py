@@ -9,7 +9,8 @@
 #   abi.py classify <old> <new>                                   the raise the change needs (first line: identical | tooling |
 #                                                                 minor | major), then the reason; comment lines are not ABI
 #
-# Public means: a typedef whose name starts with the type prefix (complete structs and unions with every member; scalar, enum
+# Every prefix argument is a space-separated list (a library with several namespaces). Public means: a typedef whose name
+# starts with a type prefix (complete structs and unions with every member; scalar, enum
 # and typedef'd types by size; pointer-to-function typedefs as callbacks), an unnamed or untypedef'd enum whose enumerators start
 # with the prefix in upper case (constants), and a function the headers under the include directory declare with the function
 # prefix. Line formats are DB_lmdb's (abi/layout.txt), so a file it wrote stays valid; enumerators of unnamed enums are the one
@@ -106,11 +107,11 @@ def load_dwarf(path):
 class Dwarf:
     def __init__(self, path, type_prefix):
         self.dies = load_dwarf(path)
-        self.prefix = type_prefix
+        self.prefixes = tuple(type_prefix.split())
         self.structs, self.scalars, self.enums, self.callbacks, self.constants = {}, [], {}, {}, {}
         typedef_targets = set()
         for d in self.dies.values():
-            if d['tag'] != 'DW_TAG_typedef' or not d.get('name', '').startswith(type_prefix):
+            if d['tag'] != 'DW_TAG_typedef' or not d.get('name', '').startswith(self.prefixes):
                 continue
             t = self.dies.get(d.get('type'))
             if t is None:
@@ -125,7 +126,7 @@ class Dwarf:
             elif t['tag'] == 'DW_TAG_pointer_type' and self.dies.get(t.get('type'), {}).get('tag') == 'DW_TAG_subroutine_type':
                 s = self.dies[t['type']]
                 self.callbacks[d['name']] = (self.tname(s.get('type')), self.params_of(s))
-        upper = type_prefix.upper()
+        upper = tuple(p.upper() for p in self.prefixes)
         for d in self.dies.values():
             if d['tag'] != 'DW_TAG_enumeration_type' or d['off'] in typedef_targets:
                 continue
@@ -242,7 +243,8 @@ def split_params(s):
 def sections(dwarf, aux, type_prefix, func_prefix, include_dir):
     d = Dwarf(dwarf, type_prefix)
     functions = {}
-    proto_re = re.compile(r'^/\* ([^:]+):\d+:NC \*/ extern (.+?) ?\b(' + re.escape(func_prefix) + r'\w+) \((.*)\);$')
+    alternatives = '|'.join(re.escape(p) for p in func_prefix.split())
+    proto_re = re.compile(r'^/\* ([^:]+):\d+:NC \*/ extern (.+?) ?\b((?:' + alternatives + r')\w+) \((.*)\);$')
     for line in open(aux):
         m = proto_re.match(line.strip())
         if m and m.group(1).startswith(include_dir):

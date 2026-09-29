@@ -23,6 +23,7 @@
 #   KYR_ABI_TYPE_PREFIX   public typedefs                "${KYR_LIB}_"
 #   KYR_ABI_FUNC_PREFIX   public functions               "${KYR_LIB}_"
 #   KYR_ABI_CONST_PREFIX  public numeric #defines        KYR_LIB in upper case, then "_"
+#                         each of the three a list (space-separated string or bash array) for a library with several namespaces
 #   KYR_ABI_NODE          linker version node prefix     KYR_LIB in upper case (the map's node is <NODE>_<major>)
 #   KYR_ABI_INCLUDE_DIR   public header root             app/include
 #   KYR_ABI_UMBRELLA      one header including all       unset: KYR_ABI_HEADERS, else every *.h under <root>/${KYR_INCLUDE_ROOT}
@@ -61,9 +62,14 @@ source "${projects[0]}"
 LIB="${KYR_LIB:-}"
 UPPER="$(tr '[:lower:]-' '[:upper:]_' <<< "${LIB}")"
 NAME="${KYR_ABI_NAME:-${LIB}}"
-TYPE_PREFIX="${KYR_ABI_TYPE_PREFIX:-${LIB:+${LIB}_}}"
-FUNC_PREFIX="${KYR_ABI_FUNC_PREFIX:-${LIB:+${LIB}_}}"
-CONST_PREFIX="${KYR_ABI_CONST_PREFIX:-${UPPER:+${UPPER}_}}"
+# prefixes <var> <default>: a space-separated list from a string or an array
+prefixes() {
+    local -n v="$1"
+    if declare -p "$1" 2> /dev/null | grep -q '^declare -a'; then printf '%s\n' "${v[*]}"; else printf '%s\n' "${v:-$2}"; fi
+}
+TYPE_PREFIX="$(prefixes KYR_ABI_TYPE_PREFIX "${LIB:+${LIB}_}")"
+FUNC_PREFIX="$(prefixes KYR_ABI_FUNC_PREFIX "${LIB:+${LIB}_}")"
+CONST_PREFIX="$(prefixes KYR_ABI_CONST_PREFIX "${UPPER:+${UPPER}_}")"
 NODE="${KYR_ABI_NODE:-${UPPER}}"
 [[ -n "${TYPE_PREFIX}" && -n "${FUNC_PREFIX}" && -n "${CONST_PREFIX}" && -n "${NODE}" ]] || die "KYR_LIB (or every KYR_ABI_*) must be set in ${projects[0]}"
 INCLUDE_DIR="${KYR_ABI_INCLUDE_DIR:-app/include}"
@@ -123,7 +129,7 @@ fi
 
 # Numeric #define constants: every object-like <CONST_PREFIX>* macro whose value is not a string, evaluated by the compiler.
 mapfile -t consts < <("${CC:-gcc}" "${CPPFLAGS_ABI[@]}" -dM -E "${OUT}/headers.c" \
-    | awk -v p="^${CONST_PREFIX}[A-Z0-9_]*$" '$1 == "#define" && $2 ~ p && NF > 2 && $3 !~ /^"/ {print $2}' | LC_ALL=C sort)
+    | awk -v p="^(${CONST_PREFIX// /|})[A-Z0-9_]*$" '$1 == "#define" && $2 ~ p && NF > 2 && $3 !~ /^"/ {print $2}' | LC_ALL=C sort)
 {
     printf '#include <stdio.h>\n'
     for h in "${HEADERS[@]}"; do printf '#include <%s>\n' "${h}"; done
@@ -131,7 +137,7 @@ mapfile -t consts < <("${CC:-gcc}" "${CPPFLAGS_ABI[@]}" -dM -E "${OUT}/headers.c
     for c in "${consts[@]}"; do printf '    printf("constant %%s %%lld\\n", "%s", (long long)(%s));\n' "${c}" "${c}"; done
     printf '    return 0;\n}\n'
 } > "${OUT}/constants.c"
-"${CC:-gcc}" "${CPPFLAGS_ABI[@]}" "${OUT}/constants.c" -o "${OUT}/constants" || die "a ${CONST_PREFIX}* macro is not a numeric constant (above)"
+"${CC:-gcc}" "${CPPFLAGS_ABI[@]}" "${OUT}/constants.c" -o "${OUT}/constants" || die "a macro with a constant prefix (${CONST_PREFIX}) is not a numeric constant (above)"
 "${OUT}/constants" > "${OUT}/layout.constants"
 "${PY[@]}" enumerators "${OUT}/headers.dwarf" "${TYPE_PREFIX}" > "${OUT}/layout.enumerators"
 
