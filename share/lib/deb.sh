@@ -17,7 +17,7 @@
 #   deb_copyright <stage> <pkg>                debian/copyright -> /usr/share/doc/<pkg>/copyright (missing = error)
 #   deb_build <stage> <pkg> [arch]             normalises modes and mtimes, dpkg-deb --root-owner-group, writes
 #                                              build/debs/<pkg>_<ver>_<arch>.deb and its .buildinfo; prints the deb path
-#   deb_sha256sums                             SHA256SUMS over build/debs/*.deb
+#   deb_sha256sums                             SHA256SUMS over build/debs/*.deb, in C-locale order
 #   deb_tar <out.tar.gz> <dir> <member ...>    sorted, epoch-clamped, root-owned, gzip -n: the same bytes every time
 #
 # Every step is deterministic (plan 4.1): no fakeroot, no sudo, the same tree gives the same deb on any machine.
@@ -112,7 +112,8 @@ deb_build() {
 }
 
 deb_sha256sums() {
-    ( cd "${DEB_OUT_DIR}" && sha256sum -- *.deb > SHA256SUMS )
+    # LC_ALL=C before the glob: the file order must not depend on the machine's locale (en_US sorts "x-dev_" after "x_")
+    ( cd "${DEB_OUT_DIR}" && export LC_ALL=C && sha256sum -- *.deb > SHA256SUMS )
 }
 
 deb_tar() {
