@@ -47,6 +47,10 @@ KYR_REPO=kyr_host refused "a listed repository declaring another tier" 'tier 3 i
 KYR_REPO=kyr_host ./utils/deps.sh check --tiers > /dev/null 2>&1 && fail "kyr_host as a product"
 KYR_REPO=kyr_server bash -c 'sed -i "s|^# tier: .*|# tier: 6 composition|" deps.txt && ./utils/deps.sh check --tiers' > /dev/null || fail "a listed repository with its own tier"
 KYR_REPO=kyr_apply bash -c 'sed -i "s|^# tier: .*|# tier: 2 platform|" deps.txt && ./utils/deps.sh check --tiers' > /dev/null || fail "kyr_apply as tier 2"
+for name in kyr_shell HSFrontEnd; do
+    KYR_REPO="${name}" bash -c 'sed -i "s|^# tier: .*|# tier: 4 core|" deps.txt && ./utils/deps.sh check --tiers' > /dev/null || fail "${name} as tier 4, the web half of the core"
+    KYR_REPO="${name}" bash -c 'sed -i "s|^# tier: .*|# tier: 6 composition|" deps.txt && ./utils/deps.sh check --tiers' > /dev/null 2>&1 && fail "${name} still tier 6"
+done
 sed -i 's|^# tier: .*|# tier: 5 product|' deps.txt
 
 # Missing, doubled and inconsistent headers.
