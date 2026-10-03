@@ -9,4 +9,4 @@
 apt     build-essential
 apt     pkg-config
 apt     libcmocka-dev             >=1.1.7
-own     kyr-build                 2.0.2      RomanHorshkov/Utils    <sha256 of kyr-build_2.0.2_all.deb>
+own     kyr-build                 2.0.2      RomanHorshkov/kyr_build <sha256 of kyr-build_2.0.2_all.deb>
