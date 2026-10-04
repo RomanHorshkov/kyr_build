@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The packaging recipes from declarations alone (KYR_DEBS): the library split with a header spec, @VERSION@ and @PIN:<pkg>@ in
 # the fields and a .pc with extra variables and Libs.private; the combined library deb with a shipped binary; a binary deb with a
-# link and share files; a web deb whose allow-list refuses a stray file; the runtime Depends (test and static pins and a paired
-# -dev pin left out, an unpaired -dev pin kept); a bin directory refused in a library deb; another notices file.
+# link and share files; a web deb whose allow-list refuses a stray file; the runtime Depends (test, static and optional pins and a
+# paired -dev pin left out, an unpaired -dev pin kept); a bin directory refused in a library deb; another notices file.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 R="${SCRATCH}/kyr_zeta"; instantiate "${R}"; cd "${R}"
@@ -17,6 +17,7 @@ printf 'own     libkyr-alpha-dev          1.0.0      owner/kyr_alpha   %s\n' "$(
 printf 'own     libkyr-beta-dev           1.0.0      owner/kyr_beta    %s\n' "$(sha256sum "${KYR_DEPS_CACHE}/debs/libkyr-beta-dev_1.0.0_all.deb" | cut -d' ' -f1)" >> deps.txt
 printf 'own     kyr-gamma-web             1.0.0      owner/kyr_gamma   %s test\n' "$(sha256sum "${KYR_DEPS_CACHE}/debs/kyr-gamma-web_1.0.0_all.deb" | cut -d' ' -f1)" >> deps.txt
 printf 'own     libkyr-delta              1.0.0      owner/kyr_delta   %s static\n' "$(sha256sum "${KYR_DEPS_CACHE}/debs/libkyr-delta_1.0.0_all.deb" | cut -d' ' -f1)" >> deps.txt
+printf 'own     libkyr-epsilon-dev        1.0.0      owner/kyr_epsilon optional   # only with a build switch\n' >> deps.txt
 mkdir -p app/cli web/word/js share/units
 printf '#include "kyr/word/word.h"\nint main(void) { return (int)kyr_word_len(""); }\n' > app/cli/main.c
 printf 'export const x = 1;\n' > web/word/js/app.js

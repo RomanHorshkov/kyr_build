@@ -110,15 +110,16 @@ deb_control() {
 }
 
 # deb_runtime_depends [pkg ...]: the runtime Depends from deps.txt: every own line but kyr-build, header-only *-util-* packages,
-# lines marked test (needed by the tests only) or static (linked or composed at build time), and a -dev package whose runtime
-# sibling is pinned too (an unpaired -dev package carries the runtime itself); as "pkg (>= ver)", extra names appended
+# lines marked test (needed by the tests only), static (linked or composed at build time) or optional (resolved only on request),
+# and a -dev package whose runtime sibling is pinned too (an unpaired -dev package carries the runtime itself); as "pkg (>= ver)",
+# extra names appended
 deb_runtime_depends() {
     local out=() name ver marks pinned
     if [[ -f "${ROOT_DIR}/deps.txt" ]]; then
         pinned=" $(sed 's/#.*$//' "${ROOT_DIR}/deps.txt" | awk '$1=="own"{printf "%s ", $2}')"
         while read -r name ver marks; do
             case "${name}" in kyr-build|*-util-*) continue ;; esac
-            case " ${marks} " in *" test "*|*" static "*) continue ;; esac
+            case " ${marks} " in *" test "*|*" static "*|*" optional "*) continue ;; esac
             [[ "${name}" == *-dev && "${pinned}" == *" ${name%-dev} "* ]] && continue
             out+=("${name} (>= ${ver})")
         done < <(sed 's/#.*$//' "${ROOT_DIR}/deps.txt" | awk '$1=="own"{m=""; for (i = 5; i <= NF; i++) m = m " " $i; print $2, $3, m}')
