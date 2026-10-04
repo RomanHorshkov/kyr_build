@@ -6,7 +6,7 @@ The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every
 
 | Package | Installs | Notes |
 |---|---|---|
-| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/deb.sh`, `lib/build.sh`, `lib/tier.sh`, `lib/epoch.sh`, `abi/` (`check_abi.sh`, `abi.py`), `template/` |
+| `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `format.sh`, `pipeline.sh`, `check_reproducible.sh`, `coverage_badge.py`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tiers.txt`, `.clang-format`, `lib/` (`kyr.sh`, `build.sh`, `test.sh`, `deb.sh`, `tier.sh`, `epoch.sh`), `abi/` (`check_abi.sh`, `abi.py`), `wrappers/`, `template/` |
 | `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
 | `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
 
@@ -14,13 +14,40 @@ Headers: `memory_macros.h`, `preprocessor_macros.h`, `string_view.h`, `time_macr
 
 ## How a repository uses it
 
-`deps.txt` carries `own kyr-build <ver> RomanHorshkov/Utils <sha256>`. The repository keeps four thin wrappers from `template/utils/` (`deps.sh`, `gcc_build_profiles.sh`, `check_hardening.sh`, `vendor.sh`); `utils/deps.sh` bootstraps the pinned deb by exact version and sha256 into `build/sysroot/share/kyr-build/` (no sudo, the Gradle-wrapper pattern), then `deps.sh sysroot` extracts every other pinned deb into `build/sysroot/` and prints the exports (`<NAME>_DEPS_INCLUDE_DIR`, `<NAME>_DEPS_LIB_DIR`, `KYR_BUILD_DIR`, `LD_LIBRARY_PATH`, `PKG_CONFIG_PATH`). Two repositories pin different versions of one library on one workstation.
+`deps.txt` carries `own kyr-build <ver> RomanHorshkov/kyr_build <sha256>`. `utils/deps.sh` bootstraps the pinned deb by exact version and sha256 into `build/sysroot/share/kyr-build/` (no sudo, the Gradle-wrapper pattern), then `deps.sh sysroot` extracts every other pinned deb into `build/sysroot/` and prints the exports (`<NAME>_DEPS_INCLUDE_DIR`, `<NAME>_DEPS_LIB_DIR`, `KYR_BUILD_DIR`, `LD_LIBRARY_PATH`, `PKG_CONFIG_PATH`). Two repositories pin different versions of one library on one workstation.
 
 ```
 ./utils/deps.sh sysroot && eval "$(./utils/deps.sh env)" && ./utils/run_pipeline.sh
 ./utils/deps.sh check --tiers        # the tier law: a repository pins only lower tiers
+./utils/deps.sh manifest-verify      # every cached deb against its pin and its release's SHA256SUMS (--strict: no unreleased pin)
 ./utils/gcc_build_profiles.sh explain
 ```
+
+The cache is `$KYR_DEPS_CACHE`, else `$RH_DEPS_CACHE`, else `~/.cache/rh-deps` (`debs/`, `sums/`, `vendor/`). A pin may carry `test` (the tests need it) or `static` (linked or composed at build time): neither becomes a runtime `Depends`.
+
+## Wrapper contract
+
+A repository's `utils/` holds only: kyr-build's wrappers (`share/wrappers/`, byte-identical), its project file `utils/<name>_project.sh` (declarations only, no function, no compiler call), linker maps `utils/*.map`, and the repository gates its project file lists in `KYR_REPO_GATES`. `template_check.sh` reports anything else as drift (CI's template stage). Each wrapper sources the catalog and `lib/kyr.sh` (the project file, `lib/build.sh`, `lib/test.sh`, `lib/deb.sh`) and makes one call:
+
+| Wrapper | Share entry | Replaces |
+|---|---|---|
+| `deps.sh` | bootstrap, then `deps.sh` | per-repo deps scripts, kyr's fork (`manifest-verify`) |
+| `gcc_build_profiles.sh`, `check_hardening.sh`, `check_abi.sh`, `vendor.sh`, `format.sh`, `check_reproducible.sh` | the share script of that name | copies of the catalog, gate, formatter, reproducibility check |
+| `build_libs.sh [profile ...]` | `kyr_build_libs` | bespoke library builders (one object set, map-major check, vendored `-w`) |
+| `build_bin.sh [profile]` | `kyr_build_bin` (`KYR_BINS`) | per-repo binary builders, demo and test apps |
+| `build_tests.sh`, `run_tests.sh [profile]` | `kyr_build_tests`, `kyr_run_tests` | per-profile test builders and runners (support sources, shared variant, expected failure, env, reset) |
+| `coverage.sh` | `kyr_coverage` | coverage.sh, release_cov builds, gcovr scripts |
+| `build_fuzz.sh`, `run_fuzz_smoke.sh [s]` | `kyr_fuzz_build`, `kyr_fuzz_smoke` | per-repo libFuzzer and standalone fuzz scripts |
+| `run_ITs.sh` | `kyr_run_it_scripts` (`KYR_IT_SCRIPTS`, exit 77 skips) | IT runners |
+| `build_UTs.sh`, `build_UTs_release.sh` | `kyr_ut_coverage`, `kyr_ut_release` | unit suite builders with gcovr gates |
+| `build_ITs.sh` | `kyr_its` (profile x linkage cells, coverage) | integration matrices, `run_ITs.sh` of the foundation |
+| `build_sanitizer_tests.sh`, `build_tsan_tests.sh` | `kyr_sanitize`, `kyr_tsan` | sanitizer scripts |
+| `build_stress.sh`, `run_stress.sh`, `run_benchmarks.sh` | `kyr_stress_build`, `kyr_stress_run` | stress matrices and benchmark runners |
+| `smoke_test_package.sh` | `kyr_smoke_package` (`tests/package/smoke.c`) | installed-package smoke scripts |
+| `build_deb.sh` | `kyr_debs` (`KYR_DEBS`: `lib`, `lib-combined`, `bin:<pkg>`, `web:<pkg>`) | per-repo packaging (headers spec, `.pc`, Depends, payload guards) |
+| `run_pipeline.sh` | `pipeline.sh` | per-repo pipelines |
+
+`pipeline.sh` runs a stage when the repository has its wrapper (the detection cicd's `c-quality.yml` makes): deps-tiers, template, format (with the pinned clang-format major, else SKIP), vendor, abi, every build profile, abi-exports, the suites, per-profile tests, coverage, ITs, fuzz-smoke, benchmarks, package, package-smoke (the smoke test against the built debs extracted into `build/smoke`), reproducible. The extra-stage hook: `KYR_PIPELINE_EXTRA=("<checks|build|tests|post>|<label>|<command>")` in the project file, e.g. `"checks|core-neutral|./utils/check_core_neutral.sh"` with the gate in `KYR_REPO_GATES`. The declarations each entry reads are listed at the top of `lib/build.sh`, `lib/test.sh`, `lib/deb.sh` and `pipeline.sh`. A badge workflow runs `build/sysroot/share/kyr-build/coverage_badge.py` after `./utils/deps.sh apt-list` (the bootstrap alone).
 
 A new product (repository, descriptor, envs, rights, bundle, edition, platform line): `share/template/NEW_PRODUCT.md`.
 
@@ -36,8 +63,8 @@ The catalog fixes `umask 022`, exports `TZ=UTC` and `SOURCE_DATE_EPOCH` from the
 
 ## This repository
 
-`./utils/run_pipeline.sh`: every script parses, every header compiles as C11 and C++17, the debs build, then `tests/ITs/` prove from the built deb that a second build is byte-identical, that the template repository is green out of the box and builds the same deb from two directories, that the wrapper refuses a wrong sha256, and that the tier law holds from declarations alone (a new product passes untouched, a product pinning a product is refused), that a docs-only commit keeps the debs byte-identical, and that the ABI gate on a scratch library refuses every unversioned ABI change. `./utils/build_deb.sh` alone writes `build/debs/` with `SHA256SUMS`.
+`./utils/run_pipeline.sh`: every script parses, the template's wrappers are the catalog's, every header compiles as C11 and C++17, the debs build, then `tests/ITs/` prove from the built deb that a second build is byte-identical, that the template repository is green out of the box and builds the same deb from two directories, that the wrapper refuses a wrong sha256 and honours both cache variables, that the tier law holds from declarations alone (a new product passes untouched, a product pinning a product is refused), that a docs-only commit keeps the debs byte-identical, that the ABI gate on a scratch library refuses every unversioned ABI change, that the suite wrappers, several targets and every packaging recipe work from declarations alone (`suites.sh`, `targets.sh`, `debs.sh`), that `template_check` reports drift (`template_drift.sh`), that `manifest-verify` tells released, unreleased and wrong pins apart, and that the hardening allow-list takes `libkyr_*`. `./utils/build_deb.sh` alone writes `build/debs/` with `SHA256SUMS`.
 
 Release: master green, signed tag `v<VERSION>`, `release.yml` (cicd `c-release`, double build on two runners). Consumers pin the new version with the sha256 from `SHA256SUMS`.
 
-Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from), `docs/diagrams/abi_gate.puml` (what an ABI change needs). `docs/compilation_steps.md` is the flag-stage reference.
+Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from), `docs/diagrams/abi_gate.puml` (what an ABI change needs), `docs/diagrams/wrapper_contract.puml` (what a repository's utils/ may hold). `docs/compilation_steps.md` is the flag-stage reference.

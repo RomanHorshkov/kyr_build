@@ -1,0 +1,29 @@
+@startuml
+' claim: a repository's utils/ holds wrappers, one project file, linker maps and declared gates; every build step is kyr-build's
+package "repository utils/" {
+  [wrappers\n(byte-identical to share/wrappers)] as W
+  [<name>_project.sh\n(declarations only)] as P
+  [*.map] as M
+  [gates in KYR_REPO_GATES] as G
+}
+package "kyr-build share/" {
+  [lib/kyr.sh] as K
+  [lib/build.sh\nlibs, bins, per-profile tests] as B
+  [lib/test.sh\nsuites, coverage, stress, fuzz, smoke] as T
+  [lib/deb.sh\nKYR_DEBS recipes] as D
+  [pipeline.sh\nstages + KYR_PIPELINE_EXTRA] as PL
+  [template_check.sh] as TC
+}
+W --> K : source catalog + kyr.sh, one call
+K --> P : sources
+K --> B
+K --> T
+K --> D
+W --> PL : run_pipeline.sh
+PL --> G : extra stages
+PL --> TC : template stage
+TC ..> W : cmp
+TC ..> P : no function, no compiler call
+TC ..> G : anything else is DRIFT
+B ..> M : version script, node major = VERSION major
+@enduml
