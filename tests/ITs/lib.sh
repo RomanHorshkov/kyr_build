@@ -11,9 +11,9 @@ KYR_DEB="${DEBS}/kyr-build_${VER}_all.deb"
 KYR_SHA="$(sha256sum "${KYR_DEB}" | awk '{print $1}')"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/kyr_build_it.XXXXXX")"
 trap 'rm -rf "${SCRATCH}"' EXIT
-export RH_DEPS_CACHE="${SCRATCH}/cache"
-mkdir -p "${RH_DEPS_CACHE}/debs"
-cp "${DEBS}"/*.deb "${RH_DEPS_CACHE}/debs/"
+export KYR_DEPS_CACHE="${SCRATCH}/cache" RH_DEPS_CACHE="${SCRATCH}/cache"
+mkdir -p "${KYR_DEPS_CACHE}/debs"
+cp "${DEBS}"/*.deb "${KYR_DEPS_CACHE}/debs/"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 # has <pattern> <command ...>: the command's whole output contains the pattern (no early-closed pipes under pipefail)
 has() { local pat="$1"; shift; local out; out="$("$@" 2>&1)" || true; grep -q -- "${pat}" <<< "${out}"; }

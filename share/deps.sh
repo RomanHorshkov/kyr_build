@@ -1,23 +1,33 @@
 #!/usr/bin/env bash
-# deps.sh — resolve deps.txt: check [--tiers] | fetch | install [--with-optional] [--downgrade] | sysroot [--with-optional] | env [--plain] | apt-list
+# deps.sh — resolve deps.txt: check [--tiers] | fetch | install [--with-optional] [--downgrade] | sysroot [--with-optional] |
+#           env [--plain] | apt-list | manifest-verify [--strict] [--with-optional]
 #
-#   apt    <pkg> [>=ver]                                   dpkg --compare-versions against the minimum
-#   own    <pkg> <ver> <owner/repo> [sha256] [optional]    .deb from that repository's GitHub Release v<ver>
-#   vendor <name> <ver> <path>                             verified by vendor.sh
+#   apt    <pkg> [>=ver]                                          dpkg --compare-versions against the minimum
+#   own    <pkg> <ver> <owner/repo> [sha256] [optional] [test] [static]
+#                                                                 .deb from that repository's GitHub Release v<ver>; test: the
+#                                                                 tests need it, static: linked or composed at build time (neither
+#                                                                 becomes a runtime Depends, lib/deb.sh)
+#   vendor <name> <ver> <path>                                    verified by vendor.sh
 #
 # check     reports every line; exit 1 on any required drift. With build/sysroot/MANIFEST matching deps.txt the own
 #           lines pass without touching dpkg. --tiers also enforces the tier law (plan 2.1, lib/tier.sh): the repository
 #           declares its tier in deps.txt ("# tier: <n> <kind>"), every own pin must be of a strictly lower tier, read
 #           from the pinned deb's X-Kyr-Tier field; tiers.txt (the platform's fixed repositories only) cross-checks both,
 #           and stands in for a deb built before the field existed. A repository tiers.txt does not list is a product.
-# fetch     downloads every own deb into the cache (${RH_DEPS_CACHE:-~/.cache/rh-deps}/debs).
+# fetch     downloads every own deb into the cache (${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-~/.cache/rh-deps}}/debs).
 # install   makes the machine match: apt for apt lines, apt install of the cached debs for own lines (needs sudo).
 #           The VM lane only; --downgrade is the one way to move a package down.
 # sysroot   no sudo: extracts every own deb into build/sysroot/{include,lib,bin,share}, writes MANIFEST and prints the
 #           export lines a build needs. Two repositories pin different versions of one library on one workstation.
 # env       prints the export lines for the existing sysroot; --plain prints KEY=VALUE lines for $GITHUB_ENV.
 # apt-list  prints the apt package names, one per line (CI installs them once).
+# manifest-verify
+#           every own line must carry a sha256; the cached deb must hash to it; and that hash must be listed for that file in the
+#           SHA256SUMS the component's own release published (cached under <cache>/sums/<owner>_<repo>_v<ver>/). Run after
+#           fetch. A component with no release v<ver> yet (or no repository on GitHub yet) whose cached deb hashes to the pin is
+#           reported "local, unreleased" and does not fail; --strict fails it (a platform release needs every pin published).
 #
+# The cache is ${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-~/.cache/rh-deps}} (debs/, sums/, vendor/).
 # A sha256 column is enforced on every cached file in every mode. This file ships in kyr-build; a repository runs it
 # through its utils/deps.sh wrapper, which bootstraps the pinned kyr-build into build/sysroot and exports ROOT_DIR.
 set -euo pipefail
@@ -27,7 +37,9 @@ trap cleanup EXIT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 DEPS_FILE="${ROOT_DIR}/deps.txt"
-CACHE_DIR="${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}/debs"
+CACHE_ROOT="${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}}"
+CACHE_DIR="${CACHE_ROOT}/debs"
+SUMS_DIR="${CACHE_ROOT}/sums"
 SYSROOT="${ROOT_DIR}/build/sysroot"
 TIERS_FILE="${KYR_TIERS_FILE:-${SCRIPT_DIR}/tiers.txt}"
 # shellcheck source=lib/tier.sh
@@ -42,10 +54,11 @@ cd -- "${ROOT_DIR}"
 export ROOT_DIR
 
 MODE="${1:-check}"; shift || true
-WITH_OPTIONAL=0 TIERS=0 PLAIN=0 DOWNGRADE=0
+WITH_OPTIONAL=0 TIERS=0 PLAIN=0 DOWNGRADE=0 STRICT=0
 for arg in "$@"; do
     case "${arg}" in
     --with-optional) WITH_OPTIONAL=1 ;;
+    --strict) STRICT=1 ;;
     --tiers) TIERS=1 ;;
     --plain) PLAIN=1 ;;
     --downgrade) DOWNGRADE=1 ;;
@@ -186,6 +199,71 @@ tiers_check() {
     return "${bad}"
 }
 
+release_sums() {  # ver repo -> path of that release's SHA256SUMS (fetched once, then cached); return 2: no release v<ver> yet
+    local ver="$1" repo="$2" tag="v$1" dir="${SUMS_DIR}/${2//\//_}_v$1" err
+    [[ -s "${dir}/SHA256SUMS" ]] && { printf '%s\n' "${dir}/SHA256SUMS"; return 0; }
+    if have_gh; then
+        if ! err="$(gh release view "${tag}" --repo "${repo}" --json tagName 2>&1 > /dev/null)"; then
+            grep -qE 'release not found|Could not resolve to a Repository' <<< "${err}" && return 2
+            die "${repo} ${tag}: ${err}"
+        fi
+        mkdir -p "${dir}"
+        gh release download "${tag}" --repo "${repo}" --pattern SHA256SUMS --dir "${dir}" --clobber > /dev/null \
+            || die "${repo} ${tag}: no SHA256SUMS asset"
+    else
+        local api="https://api.github.com/repos/${repo}/releases/tags/${tag}" url code json
+        local -a auth=(); [[ -n "${GH_TOKEN:-}" ]] && auth=(-H "Authorization: Bearer ${GH_TOKEN}")
+        json="$(mktemp)"
+        code="$(curl -sSL "${auth[@]}" -o "${json}" -w '%{http_code}' "${api}")" || { rm -f "${json}"; die "${repo} ${tag}: GitHub API unreachable"; }
+        # Unauthenticated, a private repository answers 404 too: only an authenticated 404 means "not released".
+        [[ "${code}" == 404 && -n "${GH_TOKEN:-}" ]] && { rm -f "${json}"; return 2; }
+        url="$(python3 -c "
+import json,sys
+for a in json.load(sys.stdin).get('assets',[]):
+    if a['name']=='SHA256SUMS': print(a['browser_download_url']); break
+" < "${json}" 2> /dev/null)" || true
+        rm -f "${json}"
+        [[ -n "${url}" ]] || die "${repo} ${tag}: no SHA256SUMS asset (HTTP ${code}; private repo? install gh and log in)"
+        mkdir -p "${dir}"
+        curl -fsSL --retry 3 "${auth[@]}" -o "${dir}/SHA256SUMS.part" "${url}" && mv -f "${dir}/SHA256SUMS.part" "${dir}/SHA256SUMS"
+    fi
+    [[ -s "${dir}/SHA256SUMS" ]] || die "${repo} ${tag}: SHA256SUMS download produced nothing"
+    printf '%s\n' "${dir}/SHA256SUMS"
+}
+
+manifest_verify() {
+    local fail=0 unreleased=0 cls name ver rest deb f have sums rc
+    while read -r cls name ver rest; do
+        [[ "${cls}" == own ]] || continue
+        parse_own "${rest}"
+        (( OPT )) && (( ! WITH_OPTIONAL )) && continue
+        if [[ -z "${SHA}" ]]; then printf '  %-26s %-9s NO sha256 column\n' "${name}" "${ver}"; fail=1; continue; fi
+        deb=""
+        for f in "${CACHE_DIR}/${name}_${ver}_${ARCH}.deb" "${CACHE_DIR}/${name}_${ver}_all.deb"; do [[ -s "${f}" ]] && deb="${f}"; done
+        if [[ -z "${deb}" ]]; then printf '  %-26s %-9s not cached (run: ./utils/deps.sh fetch)\n' "${name}" "${ver}"; fail=1; continue; fi
+        have="$(sha256sum "${deb}" | awk '{print $1}')"
+        if [[ "${have}" != "${SHA}" ]]; then printf '  %-26s %-9s cached %s != pinned %s\n' "${name}" "${ver}" "${have}" "${SHA}"; fail=1; continue; fi
+        rc=0; sums="$(release_sums "${ver}" "${REPO}")" || rc=$?
+        if (( rc == 2 )); then
+            printf '  %-26s %-9s local, unreleased: cached = pinned; %s has no release v%s yet\n' "${name}" "${ver}" "${REPO}" "${ver}"
+            unreleased=$(( unreleased + 1 )); continue
+        fi
+        (( rc == 0 )) || exit 1
+        if grep -qE "^${SHA}[[:space:]]+\*?$(basename "${deb}")\$" "${sums}"; then
+            printf '  %-26s %-9s ok: cached = pinned = %s SHA256SUMS\n' "${name}" "${ver}" "${REPO}"
+        else
+            printf '  %-26s %-9s pinned %s is NOT the hash %s published for %s\n' "${name}" "${ver}" "${SHA}" "${REPO}" "$(basename "${deb}")"; fail=1
+        fi
+    done < <(deps_lines)
+    (( fail == 0 )) || die "manifest-verify: at least one pinned deb does not match its component's published SHA256SUMS"
+    (( unreleased == 0 || ! STRICT )) || die "manifest-verify --strict: ${unreleased} pinned deb(s) not released yet"
+    if (( unreleased )); then
+        printf 'deps: every pinned deb matches its component release, except %d local, unreleased (cached = pinned; release them before the platform release)\n' "${unreleased}"
+    else
+        printf 'deps: every pinned deb matches its component release\n'
+    fi
+}
+
 print_exports() {
     local p fmt='export %s=%q\n'
     p="$(var_prefix)"
@@ -202,6 +280,7 @@ print_exports() {
 
 case "${MODE}" in
 apt-list) deps_lines | awk '$1=="apt"{print $2}'; exit 0 ;;
+manifest-verify) manifest_verify; exit 0 ;;
 env)
     [[ -f "${SYSROOT}/MANIFEST" ]] || die "no sysroot at ${SYSROOT} (run: ./utils/deps.sh sysroot)"
     print_exports; exit 0 ;;
@@ -314,5 +393,5 @@ sysroot)
     printf 'deps: sysroot ready at %s\n' "${SYSROOT}"
     print_exports
     ;;
-*) die "unknown mode '${MODE}' (check [--tiers] | fetch | install [--with-optional] [--downgrade] | sysroot [--with-optional] | env [--plain] | apt-list)" ;;
+*) die "unknown mode '${MODE}' (check [--tiers] | fetch | install [--with-optional] [--downgrade] | sysroot [--with-optional] | env [--plain] | apt-list | manifest-verify [--strict])" ;;
 esac

@@ -12,7 +12,7 @@
 # SHA-256, the exact list of kept files) and a MANIFEST.sha256 over those files.
 # `verify` is a CI gate: a vendored byte that changed without its record changing is a
 # failure, whether it came from an editor, a formatter or a hand patch. Downloads go
-# through ${RH_DEPS_CACHE:-$HOME/.cache/rh-deps}/vendor, a cache and never the truth.
+# through ${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-~/.cache/rh-deps}}/vendor, a cache, never the truth.
 #
 # Ships in kyr-build; a repository runs it through its utils/vendor.sh wrapper, which
 # exports ROOT_DIR.
@@ -30,7 +30,7 @@ trap cleanup EXIT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 EXTERN_DIR="${ROOT_DIR}/app/extern"
-CACHE_DIR="${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}/vendor"
+CACHE_DIR="${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}}/vendor"
 cd -- "${ROOT_DIR}"
 
 die() { printf 'vendor.sh: %s\n' "$*" >&2; exit 1; }

@@ -21,7 +21,7 @@ grep -q 'kyr_zeta declares tier 5 (product)' <<< "${out}" || fail "declaration n
 grep -q 'kyr-build .* tier 0 ok (X-Kyr-Tier 0 build)' <<< "${out}" || fail "kyr-build's tier not read from its deb"
 ./utils/build_deb.sh > /dev/null
 for d in build/debs/*.deb; do [[ "$(dpkg-deb -f "${d}" X-Kyr-Tier)" == "5 product" ]] || fail "$(basename "${d}") lacks X-Kyr-Tier: 5 product"; done
-cp build/debs/*.deb "${RH_DEPS_CACHE}/debs/"
+cp build/debs/*.deb "${KYR_DEPS_CACHE}/debs/"
 PDEV="$(ls "${P}"/build/debs/libkyr-word-dev_*.deb)"
 
 # A composition pins the product from its deb alone.
@@ -70,8 +70,8 @@ fake() { # <pkg> [X-Kyr-Tier]: a minimal deb in the test cache
     { printf 'Package: %s\nVersion: 1.0.0\nArchitecture: all\nMaintainer: it <it@localhost>\n' "$1"
       [[ -z "${2:-}" ]] || printf 'X-Kyr-Tier: %s\n' "$2"
       printf 'Description: test deb\n'; } > "${root}/DEBIAN/control"
-    dpkg-deb --build --root-owner-group "${root}" "${RH_DEPS_CACHE}/debs/$1_1.0.0_all.deb" > /dev/null
-    printf '%s\n' "${RH_DEPS_CACHE}/debs/$1_1.0.0_all.deb"
+    dpkg-deb --build --root-owner-group "${root}" "${KYR_DEPS_CACHE}/debs/$1_1.0.0_all.deb" > /dev/null
+    printf '%s\n' "${KYR_DEPS_CACHE}/debs/$1_1.0.0_all.deb"
 }
 pin deps.txt "$(fake libfake-http-dev '1 foundation')" owner/kyr_http
 ./utils/deps.sh sysroot > /dev/null
