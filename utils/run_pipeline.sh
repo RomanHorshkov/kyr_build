@@ -5,6 +5,9 @@ set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 LOG_DIR="${ROOT_DIR}/build/pipeline"; mkdir -p "${LOG_DIR}"
+source share/lib/root.sh
+if kyr_root_identity > /dev/null; then printf '== build root %s\n' "$(kyr_root_identity)"
+else export KYR_ALLOW_HOST_BUILD="${KYR_ALLOW_HOST_BUILD:-1}"; printf '== host build: development only (Build-Root: none)\n'; fi
 FAILED=0
 stage() {
     local label="$1"; shift

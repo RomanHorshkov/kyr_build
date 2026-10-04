@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # buildinfo.sh <deb> [profile] — print the build environment record for one deb (plan 4.1, Debian .buildinfo shaped).
 # lib/deb.sh writes it next to every deb as <deb>.buildinfo. Fields: the deb and its hash, SOURCE_DATE_EPOCH, the
-# build-root hash (build/root.sha256 when the deb was built inside build_root.sh, else none), the commit, the profile
-# flags, every tool version and every pinned dependency. Nothing in it is a wall-clock time.
+# build root's identity (Build-Root: from /etc/kyr-build-root inside build_root.sh enter; none on the host), the commit,
+# the profile flags, every tool version and every pinned dependency. Nothing in it is a wall-clock time.
 set -euo pipefail
 DEB="${1:-}"; PROFILE="${2:-release}"
 [[ -f "${DEB}" ]] || { printf 'usage: buildinfo.sh <deb> [profile]\n' >&2; exit 3; }
@@ -12,8 +12,9 @@ ROOT_DIR="${ROOT_DIR:-$(pwd -P)}"
 tool_version() { "$@" 2>/dev/null | head -1 || printf 'absent\n'; }
 field() { dpkg-deb -f "${DEB}" "$1" 2>/dev/null || true; }
 
-ROOT_HASH="${KYR_BUILD_ROOT_HASH:-}"
-[[ -z "${ROOT_HASH}" && -f "${ROOT_DIR}/build/root.sha256" ]] && ROOT_HASH="$(awk '{print $1; exit}' "${ROOT_DIR}/build/root.sha256")"
+# shellcheck source=lib/root.sh
+source "${SCRIPT_DIR}/lib/root.sh"
+ROOT_HASH="$(kyr_root_identity || true)"
 COMMIT="$(git -C "${ROOT_DIR}" rev-parse HEAD 2>/dev/null || true)"
 
 printf 'Format: kyr-buildinfo/1\n'

@@ -12,6 +12,7 @@ KYR_SHA="$(sha256sum "${KYR_DEB}" | awk '{print $1}')"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/kyr_build_it.XXXXXX")"
 trap 'rm -rf "${SCRATCH}"' EXIT
 export KYR_DEPS_CACHE="${SCRATCH}/cache" RH_DEPS_CACHE="${SCRATCH}/cache"
+export KYR_ALLOW_HOST_BUILD="${KYR_ALLOW_HOST_BUILD:-1}"   # the scratch debs are test builds, wherever they run
 mkdir -p "${KYR_DEPS_CACHE}/debs"
 cp "${DEBS}"/*.deb "${KYR_DEPS_CACHE}/debs/"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }

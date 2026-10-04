@@ -12,6 +12,9 @@
 #   reproducible (check_reproducible.sh, when the build inputs are committed)   glibc-ceiling (check_hardening.sh --ceiling-only
 #   over every ELF under build/ but the sysroot and the smoke install, whatever the profile)   [post]
 #
+# Outside the build root the run is a development build: KYR_ALLOW_HOST_BUILD defaults to 1, so the package stage builds debs
+# whose buildinfo says Build-Root: none; a release is ./utils/build_deb.sh inside build_root.sh enter.
+#
 # [point] is the extra-stage hook: KYR_PIPELINE_EXTRA in the project file, entries "<point>|<label>|<command>", point one of
 # checks, build, tests, post; the command runs with bash -c from the root, e.g. "checks|core-neutral|./utils/check_core_neutral.sh".
 # Knobs: KYR_PIPELINE_PROFILES (build profiles; default KYR_LIB_PROFILES, else the catalog's), KYR_TEST_PROFILES (default audit
@@ -25,6 +28,8 @@ source "${ROOT_DIR}/utils/gcc_build_profiles.sh" || exit 1
 source "${KYR_BUILD_DIR}/lib/kyr.sh"
 LOG_DIR="${ROOT_DIR}/build/pipeline"
 rm -rf "${LOG_DIR}"; mkdir -p "${LOG_DIR}"
+if kyr_root_identity > /dev/null; then printf '== build root %s\n' "$(kyr_root_identity)"
+else export KYR_ALLOW_HOST_BUILD="${KYR_ALLOW_HOST_BUILD:-1}"; printf '== host build: development only (Build-Root: none)\n'; fi
 RESULTS=()
 FAILED=0
 

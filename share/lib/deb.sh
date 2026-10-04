@@ -2,6 +2,9 @@
 # shellcheck shell=bash
 # deb.sh — the shared Debian packaging steps. A repository's utils/build_deb.sh sources it and calls, in order:
 #
+#   deb_release_check                          a release is built inside the pinned build root (build_root.sh enter);
+#                                              on the host only with KYR_ALLOW_HOST_BUILD=1, a development deb whose
+#                                              buildinfo says Build-Root: none (deb_init and kyr_debs call it first)
 #   deb_init                                   VERSION -> DEB_VERSION DEB_MAJOR; DEB_ARCH; DEB_OUT_DIR (build/debs, emptied);
 #                                              SOURCE_DATE_EPOCH (kept if the caller set it, else the last commit that
 #                                              touched a build input, lib/epoch.sh); umask 022;
@@ -54,10 +57,21 @@ DEB_MAINTAINER="${DEB_MAINTAINER:-Roman Horshkov <https://github.com/RomanHorshk
 source "${KYR_BUILD_DIR}/lib/tier.sh"
 # shellcheck source=epoch.sh
 source "${KYR_BUILD_DIR}/lib/epoch.sh"
+# shellcheck source=root.sh
+source "${KYR_BUILD_DIR}/lib/root.sh"
 
 deb_die() { printf 'deb.sh: %s\n' "$*" >&2; exit 1; }
 
+deb_release_check() {
+    kyr_root_release_check || deb_die "a release is built inside the pinned build root: ${KYR_BUILD_DIR}/build_root.sh enter -- ./utils/build_deb.sh (KYR_ALLOW_HOST_BUILD=1 builds a development deb on the host, Build-Root: none)"
+    if ! kyr_root_identity > /dev/null && [[ -z "${_DEB_HOST_NOTED:-}" ]]; then
+        printf 'deb.sh: host build (KYR_ALLOW_HOST_BUILD=1): development debs, Build-Root: none\n' >&2
+        _DEB_HOST_NOTED=1
+    fi
+}
+
 deb_init() {
+    deb_release_check
     umask 022
     [[ -f "${ROOT_DIR}/VERSION" ]] || deb_die "missing ${ROOT_DIR}/VERSION"
     DEB_VERSION="$(tr -d '[:space:]' < "${ROOT_DIR}/VERSION")"
@@ -372,6 +386,7 @@ kyr_debs() {
     local entry debs=()
     if declare -p KYR_DEBS > /dev/null 2>&1; then debs=("${KYR_DEBS[@]}"); elif [[ -n "${KYR_LIB:-}" ]]; then debs=(lib); fi
     (( ${#debs[@]} )) || deb_die "nothing to package: no KYR_DEBS and no KYR_LIB"
+    deb_release_check
     [[ -n "${KYR_LIB:-}" ]] && kyr_build_lib release
     kyr_bin_names; (( ${#KYR_REPLY[@]} )) && kyr_build_bin release
     deb_init

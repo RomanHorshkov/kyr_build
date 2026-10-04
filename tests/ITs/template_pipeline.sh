@@ -19,4 +19,5 @@ cd "${B}"
 SOURCE_DATE_EPOCH="${epoch}" ./utils/build_deb.sh > /dev/null
 diff <(sed 's| .*/| |' "${A}/build/debs/SHA256SUMS") <(sed 's| .*/| |' "${B}/build/debs/SHA256SUMS") || fail "debs differ between two build directories"
 has "${SCRATCH}" strings "${B}/build/release/libkyr_word.so.0.1.0" && fail "build path leaked into the shared object"
-grep -q "^Build-Root: none$" "${B}"/build/debs/libkyr-word_0.1.0_*.deb.buildinfo || fail "buildinfo without the build-root field"
+root_id="$(bash -c 'source "$1/share/lib/root.sh" && kyr_root_identity || printf none' _ "${ROOT_DIR}")"
+grep -q "^Build-Root: ${root_id}$" "${B}"/build/debs/libkyr-word_0.1.0_*.deb.buildinfo || fail "buildinfo without the build root's identity (${root_id})"
