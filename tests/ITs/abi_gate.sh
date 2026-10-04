@@ -79,8 +79,8 @@ cp "${H}" "${SCRATCH}/word.h.base"; cp abi/layout.txt "${SCRATCH}/layout.base"
 ./utils/run_pipeline.sh > "${SCRATCH}/pipeline.log" 2>&1 || { tail -30 "${SCRATCH}/pipeline.log"; fail "pipeline with the ABI stages"; }
 grep -q '^== abi$' "${SCRATCH}/pipeline.log" && grep -q '^== abi-exports$' "${SCRATCH}/pipeline.log" || fail "ABI stages not in the pipeline"
 expect_ok "exports exactly the declared functions" --exports
-sed -i 's/^KYR_WORD_0 {/KYR_WORD_1 {/' utils/kyr_word.map && ./utils/build_libs.sh release > /dev/null
-expect_fail "exports under another major's node" "exported, not declared" --exports
+sed -i 's/^KYR_WORD_0 {/KYR_WORD_1 {/' utils/kyr_word.map
+has "version node major 1 is not VERSION's major 0" ./utils/build_libs.sh release || fail "a map node under another major built"
 g checkout -q utils/kyr_word.map && ./utils/build_libs.sh release > /dev/null
 
 # Moving a declaration is not an ABI change.

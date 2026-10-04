@@ -5,3 +5,4 @@ apt     build-essential
 apt     dpkg-dev
 apt     binutils
 apt     libcmocka-dev             >=1.1.7
+apt     gcovr

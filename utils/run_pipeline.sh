@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# run_pipeline.sh — the kyr_build gate: every script parses, every header compiles as C and C++, the debs build,
-# the integration tests prove the shipped tooling from the deb. Exit 1 on any failure.
+# run_pipeline.sh — the kyr_build gate: every script parses, the template's wrappers are the catalog's, every header compiles as
+# C and C++, the debs build, the integration tests prove the shipped tooling from the deb. Exit 1 on any failure.
 set -uo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
@@ -27,7 +27,17 @@ header_syntax() {
     done
     return "${rc}"
 }
+wrappers_sync() {  # the template's utils/ copies are the wrapper catalog's, byte for byte
+    local f rc=0
+    for f in share/template/utils/*; do
+        [[ -f "share/wrappers/${f##*/}" ]] || continue
+        cmp "share/wrappers/${f##*/}" "${f}" || rc=1
+        printf 'checked %s\n' "${f}"
+    done
+    return "${rc}"
+}
 stage "shell-syntax"   shell_syntax
+stage "wrappers-sync"  wrappers_sync
 stage "headers-syntax" header_syntax
 stage "package"        ./utils/build_deb.sh
 stage "ITs"            ./utils/run_ITs.sh

@@ -1610,6 +1610,30 @@ LDFLAGS_TSAN=(
 )
 
 # =============================================================================
+# MARK: Coverage Profile
+# Coverage profile: the debug profile at -O0 with the coverage layer
+# =============================================================================
+#
+# What lib/test.sh compiles a coverage run with (library and tests alike): -O0
+# after -Og so gcov line and branch data map one to one onto the source. Not in
+# GCC_BUILD_PROFILES: nothing ships from it.
+#
+CPPFLAGS_COVERAGE=(
+  "${CPPFLAGS_DEBUG[@]}"
+)
+
+CFLAGS_COVERAGE=(
+  "${CFLAGS_DEBUG[@]}"
+  -O0
+  "${CFLAGS_INSTRUMENT_COVERAGE[@]}"
+)
+
+LDFLAGS_COVERAGE=(
+  "${LDFLAGS_DEBUG[@]}"
+  "${LDFLAGS_INSTRUMENT_COVERAGE[@]}"
+)
+
+# =============================================================================
 # MARK: Cost Summary
 # Build-time / runtime cost summary
 # =============================================================================
@@ -1829,6 +1853,9 @@ Available profiles:
   tsan
       Optional ThreadSanitizer profile. Use separately from AddressSanitizer.
 
+  coverage
+      The debug profile at -O0 with gcov instrumentation (coverage runs only).
+
 Examples:
 
   gcc $(./gcc_build_profiles.sh print-cppflags debug) \
@@ -1861,6 +1888,7 @@ _profile_to_cpparray_name() {
         native)   printf 'CPPFLAGS_NATIVE\n' ;;
         extreme)  printf 'CPPFLAGS_EXTREME\n' ;;
         tsan)     printf 'CPPFLAGS_TSAN\n' ;;
+        coverage) printf 'CPPFLAGS_COVERAGE\n' ;;
         *)
             printf 'unknown profile: %s\n' "$1" >&2
             return 1
@@ -1877,6 +1905,7 @@ _profile_to_carray_name() {
         native)   printf 'CFLAGS_NATIVE\n' ;;
         extreme)  printf 'CFLAGS_EXTREME\n' ;;
         tsan)     printf 'CFLAGS_TSAN\n' ;;
+        coverage) printf 'CFLAGS_COVERAGE\n' ;;
         *)
             printf 'unknown profile: %s\n' "$1" >&2
             return 1
@@ -1893,6 +1922,7 @@ _profile_to_ldarray_name() {
         native)   printf 'LDFLAGS_NATIVE\n' ;;
         extreme)  printf 'LDFLAGS_EXTREME\n' ;;
         tsan)     printf 'LDFLAGS_TSAN\n' ;;
+        coverage) printf 'LDFLAGS_COVERAGE\n' ;;
         *)
             printf 'unknown profile: %s\n' "$1" >&2
             return 1
@@ -1912,7 +1942,7 @@ _main() {
 
         print-cppflags)
             if [[ -z "$profile" ]]; then
-                printf 'usage: %s print-cppflags {debug|audit|sanitize|release|native|extreme|tsan}\n' "$0" >&2
+                printf 'usage: %s print-cppflags {debug|audit|sanitize|release|native|extreme|tsan|coverage}\n' "$0" >&2
                 return 2
             fi
             arr_name="$(_profile_to_cpparray_name "$profile")" || return 2
@@ -1921,7 +1951,7 @@ _main() {
 
         print-cflags)
             if [[ -z "$profile" ]]; then
-                printf 'usage: %s print-cflags {debug|audit|sanitize|release|native|extreme|tsan}\n' "$0" >&2
+                printf 'usage: %s print-cflags {debug|audit|sanitize|release|native|extreme|tsan|coverage}\n' "$0" >&2
                 return 2
             fi
             arr_name="$(_profile_to_carray_name "$profile")" || return 2
@@ -1930,7 +1960,7 @@ _main() {
 
         print-ldflags)
             if [[ -z "$profile" ]]; then
-                printf 'usage: %s print-ldflags {debug|audit|sanitize|release|native|extreme|tsan}\n' "$0" >&2
+                printf 'usage: %s print-ldflags {debug|audit|sanitize|release|native|extreme|tsan|coverage}\n' "$0" >&2
                 return 2
             fi
             arr_name="$(_profile_to_ldarray_name "$profile")" || return 2

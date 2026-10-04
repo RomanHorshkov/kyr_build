@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# build_bin.sh [profile] — build/<profile>/<bin> when the project declares KYR_BIN.
+# build_bin.sh [profile] — every declared binary under build/<profile>/; default release (kyr-build lib/build.sh).
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT_DIR}/utils/gcc_build_profiles.sh"
-source "${ROOT_DIR}"/utils/*_project.sh
-source "${KYR_BUILD_DIR}/lib/build.sh"
-kyr_build_bin "${1:-release}"
+source "${KYR_BUILD_DIR}/lib/kyr.sh"
+kyr_each_profile kyr_build_bin release "$@"
