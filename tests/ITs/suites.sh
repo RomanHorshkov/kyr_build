@@ -71,7 +71,7 @@ cat > tests/ITs/word_it.c <<'EOF'
 int main(void)
 {
     FILE* f = fopen("tests/results/ITs/it_ran.txt", "w");
-    if (!f)
+    if(!f)
     {
         return 2;
     }

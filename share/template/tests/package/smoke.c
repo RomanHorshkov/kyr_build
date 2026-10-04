@@ -4,7 +4,7 @@
 
 int main(void)
 {
-    if (kyr_word_len("kyr") != 3)
+    if(kyr_word_len("kyr") != 3)
     {
         return 1;
     }
