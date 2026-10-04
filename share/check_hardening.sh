@@ -14,6 +14,10 @@
 #
 # Usage:
 #   check_hardening.sh <elf> [<elf> ...]
+#   check_hardening.sh --ceiling-only <file> [<file> ...]
+#                  only the symbol-version ceiling, over every linked ELF among
+#                  the files (others are skipped): what the pipeline runs on
+#                  every ELF it built, whatever the profile
 #
 # File kind is auto-detected:
 #   shared library : ELF DYN with a DT_SONAME (or no PT_INTERP)
@@ -27,6 +31,13 @@
 #   all   : no DT_RPATH / DT_RUNPATH — a runpath bakes a build-host path into
 #           the shipped bytes and makes the loader search it first; installed
 #           libraries resolve through ldconfig, never through the artifact
+#   all   : symbol versions within the target: no GLIBC_x.y above
+#           KYR_TARGET_GLIBC_MAX (default 2.39, Ubuntu 24.04 noble), no
+#           GLIBCXX/CXXABI/GCC above KYR_TARGET_GLIBCXX_MAX (3.4.33),
+#           KYR_TARGET_CXXABI_MAX (1.3.15), KYR_TARGET_GCC_MAX (14.0.0), no
+#           GLIBC_PRIVATE. Inside the build root the defaults are the root's
+#           own libc, libstdc++ and libgcc_s. A box cannot load an ELF that
+#           needs a newer version than its libraries define
 #   all   : every DT_NEEDED is on the allowlist (libc family, libsodium, liblmdb,
 #           zlib, and the platform's own sonames: libkyr_*, and until the rename
 #           completes libdb_*/libDB_*/libio_rms) — an unexpected dependency is a
@@ -56,10 +67,26 @@
 # =============================================================================
 set -euo pipefail
 
+CEILING_ONLY=0
+[[ "${1:-}" == --ceiling-only ]] && { CEILING_ONLY=1; shift; }
 if (($# < 1)); then
-    printf 'usage: %s <elf> [<elf> ...]\n' "$0" >&2
+    printf 'usage: %s [--ceiling-only] <elf> [<elf> ...]\n' "$0" >&2
     exit 3
 fi
+
+# Symbol-version ceilings: the explicit KYR_TARGET_*_MAX, else the build root's own libraries, else Ubuntu 24.04 noble's.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/root.sh
+if [[ -f "${_SCRIPT_DIR}/lib/root.sh" ]]; then source "${_SCRIPT_DIR}/lib/root.sh"; else kyr_root_lib_ceiling() { return 1; }; fi
+_ceiling() {  # <prefix> <override> <noble>
+    local v="${2}"
+    [[ -n "${v}" ]] || v="$(kyr_root_lib_ceiling "$1" 2> /dev/null || true)"
+    printf '%s\n' "${v:-$3}"
+}
+CEIL_GLIBC="$(_ceiling GLIBC "${KYR_TARGET_GLIBC_MAX:-}" 2.39)"
+CEIL_GLIBCXX="$(_ceiling GLIBCXX "${KYR_TARGET_GLIBCXX_MAX:-}" 3.4.33)"
+CEIL_CXXABI="$(_ceiling CXXABI "${KYR_TARGET_CXXABI_MAX:-}" 1.3.15)"
+CEIL_GCC="$(_ceiling GCC "${KYR_TARGET_GCC_MAX:-}" 14.0.0)"
 
 FAILURES=0
 
@@ -103,6 +130,35 @@ check_archive() {
     elif (( bad == 0 )); then
         _pass "all ${count} member object(s) position-independent"
     fi
+}
+
+_ver_gt() { [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]; }
+
+# ceiling_over <elf>: CEIL_OVER=(every needed symbol version above its ceiling); status 1 when there is one
+ceiling_over() {
+    local v name ver max
+    CEIL_OVER=()
+    while IFS= read -r v; do
+        [[ -n "${v}" ]] || continue
+        if [[ "${v}" == GLIBC_PRIVATE ]]; then CEIL_OVER+=("GLIBC_PRIVATE"); continue; fi
+        name="${v%_*}"; ver="${v##*_}"
+        case "${name}" in
+            GLIBC) max="${CEIL_GLIBC}" ;;
+            GLIBCXX) max="${CEIL_GLIBCXX}" ;;
+            CXXABI) max="${CEIL_CXXABI}" ;;
+            GCC) max="${CEIL_GCC}" ;;
+            *) continue ;;
+        esac
+        _ver_gt "${ver}" "${max}" && CEIL_OVER+=("${v}>${name}_${max}")
+    done < <(readelf -VW "$1" 2> /dev/null | awk '/Version needs section/ {n=1; next} /Version (definition|symbols) section/ {n=0} n' |
+        grep -oE 'Name: ([A-Za-z_]+_[0-9][0-9.]*|GLIBC_PRIVATE)' | sed 's/^Name: //' | sort -u)
+    (( ${#CEIL_OVER[@]} == 0 ))
+}
+CEIL_MSG="a box with only GLIBC_${CEIL_GLIBC}, GLIBCXX_${CEIL_GLIBCXX}, CXXABI_${CEIL_CXXABI}, GCC_${CEIL_GCC} cannot load it: build inside the build root (build_root.sh enter) or raise KYR_TARGET_*_MAX deliberately"
+
+_linked_elf() {  # <file>: an ELF executable or shared object (not an object file, not an archive)
+    [[ "$(head -c 4 "$1" 2> /dev/null | tr -d '\0')" == $'\177ELF' ]] || return 1
+    readelf -hW "$1" 2> /dev/null | grep -qE 'Type:[[:space:]]+(EXEC|DYN)'
 }
 
 check_file() {
@@ -184,6 +240,13 @@ check_file() {
         _pass "no RPATH/RUNPATH"
     fi
 
+    # --- symbol-version ceiling ---------------------------------------------------
+    if ceiling_over "${f}"; then
+        _pass "symbol versions within GLIBC_${CEIL_GLIBC} GLIBCXX_${CEIL_GLIBCXX} CXXABI_${CEIL_CXXABI} GCC_${CEIL_GCC}"
+    else
+        _fail "symbol versions above the target: ${CEIL_OVER[*]} — ${CEIL_MSG}"
+    fi
+
     # --- DT_NEEDED allowlist -----------------------------------------------------
     local needed n unexpected=()
     needed="$(grep -E "\(NEEDED\)" <<< "${dyn}" | sed -E 's/.*\[([^]]+)\].*/\1/' || true)"
@@ -238,6 +301,21 @@ check_file() {
         _warn "no __*_chk symbols — all checked calls proven safe, no fortifiable calls, or missing -D_FORTIFY_SOURCE"
     fi
 }
+
+if (( CEILING_ONLY )); then
+    n=0
+    for f in "$@"; do
+        _linked_elf "${f}" || continue
+        n=$((n + 1))
+        ceiling_over "${f}" || { printf '%s\n' "${f}"; _fail "symbol versions above the target: ${CEIL_OVER[*]}"; }
+    done
+    if ((FAILURES > 0)); then
+        printf 'check_hardening: %d ELF(s) above the symbol-version ceiling: %s\n' "${FAILURES}" "${CEIL_MSG}" >&2
+        exit 2
+    fi
+    printf 'check_hardening: %d ELF(s) within GLIBC_%s GLIBCXX_%s CXXABI_%s GCC_%s\n' "${n}" "${CEIL_GLIBC}" "${CEIL_GLIBCXX}" "${CEIL_CXXABI}" "${CEIL_GCC}"
+    exit 0
+fi
 
 for f in "$@"; do
     check_file "${f}"

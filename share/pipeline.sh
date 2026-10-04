@@ -9,7 +9,8 @@
 #   unit-tests-release unit-tests integration integration-release sanitizers tsan stress-build stress-run (the suite wrappers)
 #   tests-build:<p> tests:<p> (build_tests.sh, run_tests.sh)   coverage   ITs (run_ITs.sh)   fuzz-smoke   benchmarks   [tests]
 #   package (build_deb.sh)   package-smoke (smoke_test_package.sh against the built debs extracted into build/smoke)
-#   reproducible (check_reproducible.sh, when the build inputs are committed)   [post]
+#   reproducible (check_reproducible.sh, when the build inputs are committed)   glibc-ceiling (check_hardening.sh --ceiling-only
+#   over every ELF under build/ but the sysroot and the smoke install, whatever the profile)   [post]
 #
 # [point] is the extra-stage hook: KYR_PIPELINE_EXTRA in the project file, entries "<point>|<label>|<command>", point one of
 # checks, build, tests, post; the command runs with bash -c from the root, e.g. "checks|core-neutral|./utils/check_core_neutral.sh".
@@ -125,6 +126,12 @@ if has check_reproducible.sh; then
     if ./utils/check_reproducible.sh --inputs-clean; then stage reproducible ./utils/check_reproducible.sh
     else skip reproducible "uncommitted build inputs"; fi
 fi
+ceiling_scan() {  # every ELF this build made, whatever the profile: none may need a newer symbol version than the target has
+    find build \( -path build/sysroot -o -path build/smoke -o -path build/pipeline \) -prune -o -type f \
+        ! -name '*.o' ! -name '*.a' ! -name '*.gcno' ! -name '*.gcda' ! -name '*.log' -print0 |
+        xargs -0 -r "${KYR_BUILD_DIR}/check_hardening.sh" --ceiling-only
+}
+stage glibc-ceiling ceiling_scan
 hook post
 summary
 (( FAILED )) && { printf 'pipeline FAILED\n'; exit 1; }
