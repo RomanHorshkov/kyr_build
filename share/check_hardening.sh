@@ -28,9 +28,11 @@
 #           the shipped bytes and makes the loader search it first; installed
 #           libraries resolve through ldconfig, never through the artifact
 #   all   : every DT_NEEDED is on the allowlist (libc family, libsodium, liblmdb,
-#           zlib, and the platform's own sonames) — an unexpected dependency
-#           is a supply-chain change, not a build detail. Extend per call with
-#           CHECK_HARDENING_NEEDED_EXTRA='<ERE>' when a build legitimately adds one
+#           zlib, and the platform's own sonames: libkyr_*, and until the rename
+#           completes libdb_*/libDB_*/libio_rms) — an unexpected dependency is a
+#           supply-chain change, not a build detail. Extend per call with
+#           CHECK_HARDENING_NEEDED_EXTRA='<ERE over the soname stem>' (e.g.
+#           'libcurl|libssl') when a build legitimately adds one
 #   exe   : PIE (ELF type DYN + DF_1_PIE)
 #   lib   : DT_SONAME present and versioned (lib<x>.so.<N>) — an unversioned
 #           soname makes every consumer record an ABI-less dependency
@@ -70,11 +72,9 @@ _warn() { printf '  ! %s (WARN)\n' "$1"; }
 # stack is allowed to have. Anything else must be added HERE deliberately (or
 # passed per call via CHECK_HARDENING_NEEDED_EXTRA) — a NEEDED that nobody
 # decided on is exactly the kind of dependency drift this gate exists for.
-NEEDED_ALLOW='^(libc|libm|libpthread|libdl|librt|libgcc_s|ld-linux[^ ]*|libsodium|liblmdb|libz|libdb_[a-z]+|libDB_[a-z]+|libemlog|libspscring|libmpscring|libuuid7|libfsutil|libio_rms)\.so(\.[0-9]+)*$'
-if [[ -n "${CHECK_HARDENING_NEEDED_EXTRA:-}" ]]; then
-    NEEDED_ALLOW="${NEEDED_ALLOW%\$}|${CHECK_HARDENING_NEEDED_EXTRA})\.so(\.[0-9]+)*$"
-    NEEDED_ALLOW="^(${NEEDED_ALLOW#^(}"
-fi
+NEEDED_STEMS='libc|libm|libpthread|libdl|librt|libgcc_s|ld-linux[^ ]*|libsodium|liblmdb|libz|libkyr_[a-z0-9_]+|libdb_[a-z]+|libDB_[a-z]+|libemlog|libspscring|libmpscring|libuuid7|libfsutil|libio_rms'
+[[ -n "${CHECK_HARDENING_NEEDED_EXTRA:-}" ]] && NEEDED_STEMS+="|${CHECK_HARDENING_NEEDED_EXTRA}"
+NEEDED_ALLOW="^(${NEEDED_STEMS})\.so(\.[0-9]+)*$"
 
 # Static archive: every member object must be position-independent. An
 # absolute R_X86_64_32 / R_X86_64_32S relocation means the object was compiled
