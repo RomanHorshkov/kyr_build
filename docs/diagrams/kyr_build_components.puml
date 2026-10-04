@@ -9,6 +9,7 @@ package "kyr-build (/usr/local/share/kyr-build or build/sysroot/share/kyr-build)
   [lib/build.sh] as buildlib
   [buildinfo.sh] as buildinfo
   [build_root.sh] as root
+  [lib/root.sh] as rootlib
   [tiers.txt] as tiers
   [lib/tier.sh] as tierlib
   [template/] as template
@@ -35,5 +36,8 @@ depstxt --> wdeps : own kyr-build <ver> <repo> <sha256>
 depstxt --> tierlib : # tier: <n> <kind>
 project --> catalog : gcc_build_add / drop / replace
 template ..> "a repository" : layout and wrappers (template_check.sh refuses drift)
-root ..> buildinfo : Build-Root hash
+root ..> rootlib : /etc/kyr-build-root (identity)
+buildinfo --> rootlib : Build-Root
+deblib --> rootlib : no release outside the root
+gate --> rootlib : symbol-version ceilings
 @enduml
