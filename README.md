@@ -10,7 +10,7 @@ The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every
 | `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
 | `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
 
-Headers: `memory_macros.h`, `preprocessor_macros.h`, `string_view.h`, `time_macros.h` under `app/include/kyr/util/`.
+Headers under `app/include/kyr/util/`: `memory_macros.h` (bytes ↔ KiB/MiB/GiB), `time_macros.h` (days/hours/minutes/seconds ↔ ms/us/ns), `bit_macros.h` (flag test/set/clear, powers of two, alignment, popcount/ctz/clz), `preprocessor_macros.h`, `string_view.h`. Products use these instead of their own `* 1000` or `(flags & X) != 0` spellings; `tests/ITs/util_macros.sh` proves every macro from the installed debs as C11 and C++17.
 
 ## How a repository uses it
 

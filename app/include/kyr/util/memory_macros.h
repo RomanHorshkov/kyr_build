@@ -70,4 +70,22 @@
 #    define MEMORY_SIZE_GiB_2_B(x) (MEMORY_SIZE_MiB_2_B(x) * 1024ULL)
 #endif
 
+/* Bytes back to units: the plain forms truncate, the _CEIL forms round up (a 1-byte file is 1 KiB of quota). */
+#ifndef MEMORY_SIZE_KiB
+#    define MEMORY_SIZE_KiB 1024ULL
+#    define MEMORY_SIZE_MiB (MEMORY_SIZE_KiB * 1024ULL)
+#    define MEMORY_SIZE_GiB (MEMORY_SIZE_MiB * 1024ULL)
+#endif
+
+#ifndef MEMORY_SIZE_B_2_KiB
+#    define MEMORY_SIZE_B_2_KiB(x)      ((unsigned long long)(x) / MEMORY_SIZE_KiB)
+#    define MEMORY_SIZE_B_2_MiB(x)      ((unsigned long long)(x) / MEMORY_SIZE_MiB)
+#    define MEMORY_SIZE_B_2_GiB(x)      ((unsigned long long)(x) / MEMORY_SIZE_GiB)
+#    define MEMORY_SIZE_B_2_KiB_CEIL(x) (((unsigned long long)(x) + MEMORY_SIZE_KiB - 1ULL) / MEMORY_SIZE_KiB)
+#    define MEMORY_SIZE_B_2_MiB_CEIL(x) (((unsigned long long)(x) + MEMORY_SIZE_MiB - 1ULL) / MEMORY_SIZE_MiB)
+#    define MEMORY_SIZE_B_2_GiB_CEIL(x) (((unsigned long long)(x) + MEMORY_SIZE_GiB - 1ULL) / MEMORY_SIZE_GiB)
+#    define MEMORY_SIZE_MiB_2_KiB(x)    ((unsigned long long)(x) * 1024ULL)
+#    define MEMORY_SIZE_GiB_2_MiB(x)    ((unsigned long long)(x) * 1024ULL)
+#endif
+
 #endif /* MEMORY_UNIT_MACROS_H_ */
