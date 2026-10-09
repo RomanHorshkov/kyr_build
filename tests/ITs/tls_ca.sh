@@ -32,7 +32,8 @@ port() { printf '%d' $(( (RANDOM % 20000) + 30000 )); }
 serve() {
     openssl s_server -accept "127.0.0.1:$1" -naccept "$2" -cert "${D}/it.example.test.fullchain.pem" -key "${D}/it.example.test.key" -www > "${SCRATCH}/s_server.$1.log" 2>&1 &
     SRV=$!
-    for _ in $(seq 50); do ss -ltn 2> /dev/null | grep -q ":$1 " && return 0; sleep 0.1; done
+    # s_server prints ACCEPT once it listens: no ss or netstat needed (the build root has neither)
+    for _ in $(seq 50); do grep -q '^ACCEPT' "${SCRATCH}/s_server.$1.log" 2> /dev/null && return 0; sleep 0.1; done
     return 1
 }
 unset SSL_CERT_FILE CURL_CA_BUNDLE REQUESTS_CA_BUNDLE KYR_TLS_CA
