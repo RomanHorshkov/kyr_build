@@ -132,7 +132,9 @@ EOF
     printf '#!/bin/sh\nexit 101\n' > "${r}/usr/sbin/policy-rc.d"
     chmod 0755 "${r}/usr/sbin/policy-rc.d"
     rm -f "${r}/etc/resolv.conf"; : > "${r}/etc/resolv.conf"
-    mkdir -p "${r}/src"
+    # fontconfig-config's postinst gives a /usr/local/share/fonts it creates to root:staff, a group the user namespace does not map,
+    # and the install fails; made here, the postinst leaves it as it is
+    mkdir -p "${r}/src" "${r}/usr/local/share/fonts"
 }
 
 apt_install() {  # <root>: apt-get update and install of the package set, as uid 0 of a user namespace

@@ -75,7 +75,7 @@ share/build_root.sh verify                          # identity (dpkg-query insid
 share/build_root.sh enter -- ./utils/build_deb.sh   # run from a repository: it is /src
 ```
 
-A repository reaches it as `build/sysroot/share/kyr-build/build_root.sh`. `enter` mounts the root read-only, binds the repository at `/src` (the working directory) and the deb cache read-write at the path the tools use, gives a throwaway `HOME`, shares the network (`--offline` drops it), refuses a root whose package set drifted, and passes only a short list of variables (`KYR_BUILD_ROOT_ENV` adds names). `--dir` moves the root.
+A repository reaches it as `build/sysroot/share/kyr-build/build_root.sh`. `enter` mounts the root read-only, binds the repository at `/src` (the working directory) and the deb cache read-write at the path the tools use, gives a throwaway `HOME`, shares the network (`--offline` drops it), refuses a root whose package set drifted, and passes only a short list of variables (`KYR_BUILD_ROOT_ENV` adds names). `--dir` moves the root. `KYR_BUILD_ROOT_PACKAGES` with `--dir` makes another root from the same pins, with its own identity (uuid7's documentation root); `create` makes `/usr/local/share/fonts` before apt, so a root with fontconfig installs rootless.
 
 The identity is the sha256 of suite, snapshot, tarball sha256 and the installed package list; it lives in the root as `/etc/kyr-build-root`. Every deb built inside records it as `Build-Root:` in its buildinfo; a host build records `none`. `build_deb` refuses a release outside the root unless `KYR_ALLOW_HOST_BUILD=1` (a development deb); both pipelines set it on the host, so builds and tests run there freely.
 
