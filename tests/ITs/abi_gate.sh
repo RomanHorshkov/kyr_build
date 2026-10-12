@@ -154,6 +154,6 @@ printf 'constant KYR_WORD_OTHER 1\n' >> abi/layout.txt
 expect_fail "a covered category changed along with new ones" "without a major bump"
 g checkout -q -f master
 
-# A hand-written layout program (DB_lmdb's form) must list every public struct.
+# A hand-written layout program (kyr_lmdb's form) must list every public struct.
 printf '#include <stdio.h>\n#include <kyr/word/word.h>\nint main(void)\n{\n    printf("data_model pointer %%zu long %%zu\\n", sizeof(void*), sizeof(long));\n    return 0;\n}\n' > abi/layout.c
 expect_fail "abi/layout.c missing a struct" "struct kyr_word_rec_t is public but not listed"

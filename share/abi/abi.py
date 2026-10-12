@@ -13,7 +13,7 @@
 # starts with a type prefix (complete structs and unions with every member; scalar, enum
 # and typedef'd types by size; pointer-to-function typedefs as callbacks), an unnamed or untypedef'd enum whose enumerators start
 # with the prefix in upper case (constants), and a function the headers under the include directory declare with the function
-# prefix. Line formats are DB_lmdb's (abi/layout.txt), so a file it wrote stays valid; enumerators of unnamed enums are the one
+# prefix. Line formats are kyr_lmdb's (abi/layout.txt), so a file it wrote stays valid; enumerators of unnamed enums are the one
 # category it did not have (`enumerator NAME VALUE`).
 import re
 import sys

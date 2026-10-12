@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Utils
+Upstream-Name: kyr_build
 Upstream-Contact: Roman Horshkov <https://github.com/RomanHorshkov>
-Source: https://github.com/RomanHorshkov/Utils
+Source: https://github.com/RomanHorshkov/kyr_build
 
 Files: *
 Copyright: 2026 Roman Horshkov

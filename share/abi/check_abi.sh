@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check_abi.sh [--update | --exports [lib.so]] — the public ABI gate, SemVer on the ABI (lifted from DB_lmdb's
+# check_abi.sh [--update | --exports [lib.so]] — the public ABI gate, SemVer on the ABI (lifted from kyr_lmdb's
 # utils/check_abi_layout.sh). Runs in the repository at ROOT_DIR through its utils/check_abi.sh wrapper; the pipeline runs it when
 # abi/layout.txt exists.
 #
@@ -9,7 +9,7 @@
 #                    every public callback's signature; every function the public headers declare (return type, parameter types);
 #                    every numeric <CONST_PREFIX>* #define; every enumerator of an unnamed public enum. A `major` line records
 #                    VERSION's major.
-#   abi/layout.c     optional: a hand-written layout program (DB_lmdb's form), cross-checked against the debug information. Without
+#   abi/layout.c     optional: a hand-written layout program (kyr_lmdb's form), cross-checked against the debug information. Without
 #                    it the program is generated from the public headers, so every public struct and member is covered by
 #                    construction and moving a declaration inside a header changes nothing.
 #
@@ -30,7 +30,7 @@
 #   KYR_ABI_UMBRELLA      one header including all       unset: KYR_ABI_HEADERS, else every *.h under <root>/${KYR_INCLUDE_ROOT}
 #   KYR_ABI_HEADERS       public headers (array, relative to the root)
 #   KYR_LIB_CPPFLAGS      include flags (the sysroot's headers for what the public headers include)
-# DB_lmdb's eight variables map one to one (NAME TYPE_PREFIX FUNC_PREFIX CONST_PREFIX NODE INCLUDE_DIR UMBRELLA, the layout path is
+# kyr_lmdb's eight variables map one to one (NAME TYPE_PREFIX FUNC_PREFIX CONST_PREFIX NODE INCLUDE_DIR UMBRELLA, the layout path is
 # fixed). Differences from its gate: without abi/layout.c the program is generated; enumerators of unnamed enums are covered
 # (`enumerator` lines, a category of their own); --exports compares functions only, so a module may export its descriptor object;
 # the header comment line is kept as committed and comment lines are not ABI.
