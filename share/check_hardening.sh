@@ -39,9 +39,9 @@
 #           own libc, libstdc++ and libgcc_s. A box cannot load an ELF that
 #           needs a newer version than its libraries define
 #   all   : every DT_NEEDED is on the allowlist (libc family, libsodium, liblmdb,
-#           zlib, and the platform's own sonames: libkyr_*, and until the rename
-#           completes libdb_*/libDB_*/libio_rms) — an unexpected dependency is a
-#           supply-chain change, not a build detail. Extend per call with
+#           zlib, and the platform's own sonames: libkyr_* and the foundation's)
+#           — an unexpected dependency is a supply-chain change, not a build
+#           detail. Extend per call with
 #           CHECK_HARDENING_NEEDED_EXTRA='<ERE over the soname stem>' (e.g.
 #           'libcurl|libssl') when a build legitimately adds one
 #   exe   : PIE (ELF type DYN + DF_1_PIE)
@@ -99,7 +99,7 @@ _warn() { printf '  ! %s (WARN)\n' "$1"; }
 # stack is allowed to have. Anything else must be added HERE deliberately (or
 # passed per call via CHECK_HARDENING_NEEDED_EXTRA) — a NEEDED that nobody
 # decided on is exactly the kind of dependency drift this gate exists for.
-NEEDED_STEMS='libc|libm|libpthread|libdl|librt|libgcc_s|ld-linux[^ ]*|libsodium|liblmdb|libz|libkyr_[a-z0-9_]+|libdb_[a-z]+|libDB_[a-z]+|libemlog|libspscring|libmpscring|libuuid7|libfsutil|libio_rms'
+NEEDED_STEMS='libc|libm|libpthread|libdl|librt|libgcc_s|ld-linux[^ ]*|libsodium|liblmdb|libz|libkyr_[a-z0-9_]+|libemlog|libspscring|libmpscring|libuuid7|libfsutil'
 [[ -n "${CHECK_HARDENING_NEEDED_EXTRA:-}" ]] && NEEDED_STEMS+="|${CHECK_HARDENING_NEEDED_EXTRA}"
 NEEDED_ALLOW="^(${NEEDED_STEMS})\.so(\.[0-9]+)*$"
 
