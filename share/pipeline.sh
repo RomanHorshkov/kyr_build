@@ -4,7 +4,8 @@
 # the first) and ends GREEN only when no stage failed. A stage runs when the repository has the wrapper it needs, the same
 # detection cicd's c-quality.yml makes, so the local pipeline and CI run the same gates:
 #
-#   deps-tiers   template   format (with the pinned clang-format major, else SKIP)   vendor (app/extern)   [checks]
+#   deps-tiers   template   legacy-names (check_legacy_names.sh: no pre-kyr name outside legacy_names.allow's history)
+#   format (with the pinned clang-format major, else SKIP)   vendor (app/extern)   [checks]
 #   abi (abi/layout.txt)   build:<p> (build_libs.sh)   build-bin:<p> (build_bin.sh)   abi-exports   [build]
 #   unit-tests-release unit-tests integration integration-release sanitizers tsan stress-build stress-run (the suite wrappers)
 #   tests-build:<p> tests:<p> (build_tests.sh, run_tests.sh)   coverage   ITs (run_ITs.sh)   fuzz-smoke   benchmarks   [tests]
@@ -83,6 +84,7 @@ kyr_bin_names; BINS=("${KYR_REPLY[@]}")
 
 stage deps-tiers ./utils/deps.sh check --tiers
 stage template "${KYR_BUILD_DIR}/template_check.sh" "${ROOT_DIR}"
+stage legacy-names "${KYR_BUILD_DIR}/check_legacy_names.sh" "${ROOT_DIR}"
 if has format.sh; then
     CF="$(clang_format_pinned)"
     if [[ -n "${CF}" ]]; then stage format env CLANG_FORMAT="${CF}" ./utils/format.sh --check

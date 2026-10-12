@@ -14,7 +14,7 @@ for d in "${DEBS}"/kyr-util-*_"${VER}"_all.deb; do
     for f in Provides Replaces Conflicts Breaks; do [[ -z "$(dpkg-deb -f "${d}" "${f}")" ]] || fail "$(basename "${d}") declares ${f}"; done
 done
 for f in Provides Replaces Conflicts Breaks; do [[ -z "$(dpkg-deb -f "${KYR_DEB}" "${f}")" ]] || fail "kyr-build declares ${f}"; done
-for p in VERSION deps.sh gcc_build_profiles.sh check_hardening.sh vendor.sh buildinfo.sh build_root.sh tiers.txt lib/deb.sh lib/build.sh lib/tier.sh lib/epoch.sh abi/check_abi.sh abi/abi.py template/utils/deps.sh template/utils/check_abi.sh template/.clang-format .clang-format; do
+for p in VERSION deps.sh gcc_build_profiles.sh check_hardening.sh check_legacy_names.sh legacy_names.pat template/legacy_names.allow vendor.sh buildinfo.sh build_root.sh tiers.txt lib/deb.sh lib/build.sh lib/tier.sh lib/epoch.sh abi/check_abi.sh abi/abi.py template/utils/deps.sh template/utils/check_abi.sh template/.clang-format .clang-format; do
     has "./usr/local/share/kyr-build/${p}\$" dpkg-deb -c "${KYR_DEB}" || fail "kyr-build lacks ${p}"
 done
 [[ "$(dpkg-deb -f "${KYR_DEB}" Architecture)" == all ]] || fail "kyr-build must be arch all"
