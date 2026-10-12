@@ -14,7 +14,7 @@
 #           declares its tier in deps.txt ("# tier: <n> <kind>"), every own pin must be of a strictly lower tier, read
 #           from the pinned deb's X-Kyr-Tier field; tiers.txt (the platform's fixed repositories only) cross-checks both,
 #           and stands in for a deb built before the field existed. A repository tiers.txt does not list is a product.
-# fetch     downloads every own deb into the cache (${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-~/.cache/rh-deps}}/debs).
+# fetch     downloads every own deb into the cache (${KYR_DEPS_CACHE:-~/.cache/rh-deps}/debs).
 # install   makes the machine match: apt for apt lines, apt install of the cached debs for own lines (needs sudo).
 #           The VM lane only; --downgrade is the one way to move a package down.
 # sysroot   no sudo: extracts every own deb into build/sysroot/{include,lib,bin,share}, writes MANIFEST and prints the
@@ -27,7 +27,7 @@
 #           fetch. A component with no release v<ver> yet (or no repository on GitHub yet) whose cached deb hashes to the pin is
 #           reported "local, unreleased" and does not fail; --strict fails it (a platform release needs every pin published).
 #
-# The cache is ${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-~/.cache/rh-deps}} (debs/, sums/, vendor/).
+# The cache is ${KYR_DEPS_CACHE:-~/.cache/rh-deps} (debs/, sums/, vendor/).
 # A sha256 column is enforced on every cached file in every mode. This file ships in kyr-build; a repository runs it
 # through its utils/deps.sh wrapper, which bootstraps the pinned kyr-build into build/sysroot and exports ROOT_DIR.
 set -euo pipefail
@@ -37,7 +37,7 @@ trap cleanup EXIT
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 DEPS_FILE="${ROOT_DIR}/deps.txt"
-CACHE_ROOT="${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}}"
+CACHE_ROOT="${KYR_DEPS_CACHE:-${HOME}/.cache/rh-deps}"
 CACHE_DIR="${CACHE_ROOT}/debs"
 SUMS_DIR="${CACHE_ROOT}/sums"
 SYSROOT="${ROOT_DIR}/build/sysroot"
@@ -46,6 +46,7 @@ TIERS_FILE="${KYR_TIERS_FILE:-${SCRIPT_DIR}/tiers.txt}"
 source "${SCRIPT_DIR}/lib/tier.sh"
 ARCH="$(dpkg --print-architecture)"
 die() { printf 'deps.sh: %s\n' "$*" >&2; exit 1; }
+OLD_CACHE="RH""_DEPS_CACHE"; [[ -z "${!OLD_CACHE:-}" || -n "${KYR_DEPS_CACHE:-}" ]] || die "${OLD_CACHE} is no longer read: export KYR_DEPS_CACHE=${!OLD_CACHE}"   # 3.0.0: the Utils-era name alone is refused
 # deps.txt without comments and blank lines: a `#` starts a comment anywhere on a line, so a trailing note is never read as
 # a version, a repository or a hash.
 deps_lines() { sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "${DEPS_FILE}"; }

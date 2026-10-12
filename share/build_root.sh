@@ -236,7 +236,8 @@ cmd_enter() {
     src="${SRC:-$(pwd -P)}"
     user="$(id -un)"; uid="$(id -u)"; gid="$(id -g)"
     if (( uid == 0 )); then home_in=/root; else home_in="/home/${user}"; fi
-    cache="${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}}"
+    local OLD_CACHE="RH""_DEPS_CACHE"; [[ -z "${!OLD_CACHE:-}" || -n "${KYR_DEPS_CACHE:-}" ]] || die "${OLD_CACHE} is no longer read: export KYR_DEPS_CACHE=${!OLD_CACHE}"
+    cache="${KYR_DEPS_CACHE:-${HOME}/.cache/rh-deps}"
     mkdir -p "${cache}/debs"; cache="$(cd "${cache}" && pwd -P)"
     case "${cache}" in /home/*|/root/*|/tmp/*) cache_in="${cache}" ;; *) cache_in="${home_in}/.cache/rh-deps" ;; esac
     # What crosses into the root: the identity, the cache, and only these names from the caller's environment.
@@ -257,7 +258,7 @@ cmd_enter() {
         --unshare-user --unshare-pid --unshare-ipc --unshare-uts --hostname kyr-build-root --die-with-parent \
         --clearenv --setenv PATH "${ROOT_PATH}" --setenv HOME "${home_in}" --setenv USER "${user}" --setenv LOGNAME "${user}" \
         --setenv LANG C.UTF-8 --setenv KYR_BUILD_ROOT_ID "${id}" --setenv KYR_BUILD_ROOT_HASH "${id}" \
-        --setenv KYR_DEPS_CACHE "${cache_in}" --setenv RH_DEPS_CACHE "${cache_in}" "${env_args[@]}" \
+        --setenv KYR_DEPS_CACHE "${cache_in}" "${env_args[@]}" \
         --chdir /src -- "$@"
 }
 

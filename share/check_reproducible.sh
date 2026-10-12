@@ -12,6 +12,7 @@ ROOT_DIR="${ROOT_DIR:-$(pwd -P)}"
 cd -- "${ROOT_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 die() { printf 'check_reproducible: %s\n' "$*" >&2; exit 1; }
+OLD_CACHE="RH""_DEPS_CACHE"; [[ -z "${!OLD_CACHE:-}" || -n "${KYR_DEPS_CACHE:-}" ]] || die "${OLD_CACHE} is no longer read: export KYR_DEPS_CACHE=${!OLD_CACHE}"   # 3.0.0: the Utils-era name alone is refused
 _projects=(utils/*_project.sh)
 KYR_BUILD_INPUTS=()
 # shellcheck source=lib/epoch.sh
@@ -46,7 +47,7 @@ for name in KYR_ALLOW_HOST_BUILD KYR_BUILD_ROOT_MARKER TMPDIR KYR_TARGET_GLIBC_M
     KYR_TARGET_GCC_MAX CHECK_HARDENING_NEEDED_EXTRA; do
     [[ -n "${!name+x}" ]] && pass+=("${name}=${!name}")
 done
-env -i HOME="${HOME}" PATH="${PATH}" LANG=C.UTF-8 KYR_DEPS_CACHE="${KYR_DEPS_CACHE:-${RH_DEPS_CACHE:-${HOME}/.cache/rh-deps}}" "${pass[@]}" \
+env -i HOME="${HOME}" PATH="${PATH}" LANG=C.UTF-8 KYR_DEPS_CACHE="${KYR_DEPS_CACHE:-${HOME}/.cache/rh-deps}" "${pass[@]}" \
     bash -c 'set -euo pipefail
              cd -- "$1"
              eval "$(./utils/deps.sh sysroot | grep "^export")"

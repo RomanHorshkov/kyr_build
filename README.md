@@ -25,7 +25,7 @@ Headers under `app/include/kyr/util/`: `memory_macros.h` (bytes ↔ KiB/MiB/GiB)
 ./utils/gcc_build_profiles.sh explain
 ```
 
-The cache is `$KYR_DEPS_CACHE`, else `$RH_DEPS_CACHE`, else `~/.cache/rh-deps` (`debs/`, `sums/`, `vendor/`). A pin may carry `optional` (resolved only with `--with-optional`), `test` (the tests need it) or `static` (linked or composed at build time): none becomes a runtime `Depends`.
+The cache is `$KYR_DEPS_CACHE`, else `~/.cache/rh-deps` (`debs/`, `sums/`, `vendor/`); a shell that sets only the Utils-era name is refused, naming the export to make. A pin may carry `optional` (resolved only with `--with-optional`), `test` (the tests need it) or `static` (linked or composed at build time): none becomes a runtime `Depends`.
 
 ## Wrapper contract
 
@@ -90,4 +90,4 @@ Release: master green, signed tag `v<VERSION>`, `release.yml` (cicd `c-release`,
 
 Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from), `docs/diagrams/abi_gate.puml` (what an ABI change needs), `docs/diagrams/wrapper_contract.puml` (what a repository's utils/ may hold). `docs/compilation_steps.md` is the flag-stage reference.
 
-History: 3.0.0 builds kyr-util only (no pre-2.0 header debs, include path or package relations), names each repository once in the tier map, allows only the kyr and foundation sonames in the hardening gate, and adds the legacy-names stage.
+History: 3.0.0 builds kyr-util only (no pre-2.0 header debs, include path or package relations), names each repository once in the tier map, allows only the kyr and foundation sonames in the hardening gate, reads the deps cache from `KYR_DEPS_CACHE` only (a shell that sets only the Utils-era name is refused), and adds the legacy-names stage, which kyr_build runs on itself.

@@ -40,6 +40,7 @@ wrappers_sync() {  # the template's utils/ copies are the wrapper catalog's, byt
     return "${rc}"
 }
 stage "shell-syntax"   shell_syntax
+stage "legacy-names"   bash share/check_legacy_names.sh "${ROOT_DIR}"
 stage "wrappers-sync"  wrappers_sync
 stage "headers-syntax" header_syntax
 stage "package"        ./utils/build_deb.sh
