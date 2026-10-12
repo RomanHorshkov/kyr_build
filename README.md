@@ -89,3 +89,5 @@ Glibc ceiling: `check_hardening.sh` refuses an ELF that needs a symbol version n
 Release: master green, signed tag `v<VERSION>`, `release.yml` (cicd `c-release`, double build on two runners; its `build_deb` refuses until the job enters the build root). Consumers pin the new version with the sha256 from `SHA256SUMS`.
 
 Diagrams: `docs/diagrams/kyr_build_components.puml` (what ships), `docs/diagrams/sysroot_bootstrap_sequence.puml` (how a repository resolves it), `docs/diagrams/tier_check.puml` (where a tier comes from), `docs/diagrams/abi_gate.puml` (what an ABI change needs), `docs/diagrams/wrapper_contract.puml` (what a repository's utils/ may hold). `docs/compilation_steps.md` is the flag-stage reference.
+
+History: 3.0.0 builds kyr-util only (no pre-2.0 header debs, include path or package relations), names each repository once in the tier map, allows only the kyr and foundation sonames in the hardening gate, and adds the legacy-names stage.
