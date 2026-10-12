@@ -8,7 +8,6 @@ for h in time-macros memory-macros bit-macros; do
     [[ -f "${d}" ]] || fail "missing $(basename "${d}")"
     dpkg-deb -x "${d}" "${SCRATCH}/inc"
 done
-has './usr/local/include/utils/bit_macros.h' dpkg-deb -c "${DEBS}/kyr-util-bit-macros_${VER}_all.deb" || fail "bit_macros utils/ compat path"
 cat > "${SCRATCH}/t.c" <<'SRC'
 #include <kyr/util/bit_macros.h>
 #include <kyr/util/memory_macros.h>

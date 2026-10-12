@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# kyr-util-<header> installs the kyr/util path and keeps the utils/ path, and takes over the rh-util-* name;
-# rh-util-<header> is still built for today's pins; kyr-build ships the template and its VERSION.
+# The debs are kyr-build and one kyr-util-<header> per header, nothing else: each kyr-util deb installs its header under kyr/util
+# only and declares no package relation; kyr-build ships the template and its VERSION.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-d="${DEBS}/kyr-util-string-view_${VER}_all.deb"
-[[ -f "${d}" ]] || fail "missing $(basename "${d}")"
-has './usr/local/include/kyr/util/string_view.h' dpkg-deb -c "${d}" || fail "kyr/util path missing"
-has './usr/local/include/utils/string_view.h' dpkg-deb -c "${d}" || fail "utils compat path missing"
-[[ "$(dpkg-deb -f "${d}" Provides)" == "rh-util-string-view" ]] || fail "Provides"
-has 'rh-util-string-view' dpkg-deb -f "${d}" Replaces || fail "Replaces"
-[[ -f "${DEBS}/rh-util-string-view_${VER}_all.deb" ]] || fail "rh-util-string-view no longer built"
-has './usr/local/include/utils/memory_macros.h' dpkg-deb -c "${DEBS}/rh-util-memory-macros_${VER}_all.deb" || fail "rh-util path"
+want="kyr-build_${VER}_all.deb"
+for h in "${ROOT_DIR}"/app/include/kyr/util/*.h; do n="$(basename "${h}" .h)"; want+=$'\n'"kyr-util-${n//_/-}_${VER}_all.deb"; done
+[[ "$(cd "${DEBS}" && ls -1 ./*.deb | sed 's|^\./||' | LC_ALL=C sort)" == "$(LC_ALL=C sort <<< "${want}")" ]] || { ls -1 "${DEBS}"/*.deb >&2; fail "the debs are not exactly kyr-build and one kyr-util per header"; }
+for d in "${DEBS}"/kyr-util-*_"${VER}"_all.deb; do
+    n="$(basename "${d}")"; n="${n#kyr-util-}"; n="${n%%_*}"; n="${n//-/_}.h"
+    has "./usr/local/include/kyr/util/${n}\$" dpkg-deb -c "${d}" || fail "$(basename "${d}") lacks kyr/util/${n}"
+    other="$(dpkg-deb -c "${d}" | awk '{print $6}' | grep '^\./usr/local/include/.' | grep -v '^\./usr/local/include/kyr/' || true)"
+    [[ -z "${other}" ]] || fail "$(basename "${d}") installs outside kyr/: ${other}"
+    for f in Provides Replaces Conflicts Breaks; do [[ -z "$(dpkg-deb -f "${d}" "${f}")" ]] || fail "$(basename "${d}") declares ${f}"; done
+done
+for f in Provides Replaces Conflicts Breaks; do [[ -z "$(dpkg-deb -f "${KYR_DEB}" "${f}")" ]] || fail "kyr-build declares ${f}"; done
 for p in VERSION deps.sh gcc_build_profiles.sh check_hardening.sh vendor.sh buildinfo.sh build_root.sh tiers.txt lib/deb.sh lib/build.sh lib/tier.sh lib/epoch.sh abi/check_abi.sh abi/abi.py template/utils/deps.sh template/utils/check_abi.sh template/.clang-format .clang-format; do
     has "./usr/local/share/kyr-build/${p}\$" dpkg-deb -c "${KYR_DEB}" || fail "kyr-build lacks ${p}"
 done

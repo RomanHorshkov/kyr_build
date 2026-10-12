@@ -7,8 +7,7 @@ The toolchain of the kyr platform (tier 0): one package, `kyr-build`, that every
 | Package | Installs | Notes |
 |---|---|---|
 | `kyr-build` (arch all) | `/usr/local/share/kyr-build/` | `gcc_build_profiles.sh`, `check_hardening.sh`, `deps.sh`, `vendor.sh`, `format.sh`, `pipeline.sh`, `check_reproducible.sh`, `coverage_badge.py`, `buildinfo.sh`, `build_root.sh`, `template_check.sh`, `tls_ca.sh`, `tiers.txt`, `.clang-format`, `lib/` (`kyr.sh`, `build.sh`, `test.sh`, `deb.sh`, `tier.sh`, `epoch.sh`, `root.sh`), `abi/` (`check_abi.sh`, `abi.py`), `wrappers/`, `template/` |
-| `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` and, until the next major, `/usr/local/include/utils/<header>.h` | Provides/Replaces `rh-util-<header>` |
-| `rh-util-<header>` (arch all) | `/usr/local/include/utils/<header>.h` | the pre-2.0 name, still built so today's pins resolve |
+| `kyr-util-<header>` (arch all) | `/usr/local/include/kyr/util/<header>.h` | one deb per header |
 
 Test TLS without the network: `build/sysroot/share/kyr-build/tls_ca.sh mint <dir> <host>…` writes a P-256 test CA (one year) and one leaf for the hosts (SANs: the hosts, 127.0.0.1, ::1) as `ca.crt`, `ca.key`, `<host>.crt`, `<host>.key`, `<host>.fullchain.pem` (keys 0600, nothing outside `<dir>`, a second run keeps what covers the hosts); `eval "$(… tls_ca.sh trust-env <dir>)"` makes openssl, curl and Python of that shell trust it (`SSL_CERT_FILE`, `CURL_CA_BUNDLE`, `REQUESTS_CA_BUNDLE`) and names it for gjs as `KYR_TLS_CA`.
 kyr_fleet's e2e gates mint theirs this way and serve the real nginx on loopback with it; `tests/ITs/tls_ca.sh` proves the chain, the one-shot `openssl s_server` and curl under `trust-env`.
