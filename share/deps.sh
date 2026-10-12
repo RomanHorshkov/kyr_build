@@ -94,8 +94,8 @@ repo_name() {
     if [[ -n "${url}" ]]; then printf '%s\n' "${url##*[/:]}"; else basename "${ROOT_DIR}"; fi
 }
 
-tier_of() {  # name -> tier number; fails when the name (or alias) is not in the map
-    awk -v n="$1" '$1 ~ /^[0-9]+$/ { for (i = 2; i <= NF; i++) if ($i == n) { print $1; found = 1; exit } } END { exit !found }' "${TIERS_FILE}"
+tier_of() {  # name -> tier number; fails when the name is not in the map
+    awk -v n="$1" '$1 ~ /^[0-9]+$/ && $2 == n { print $1; found = 1; exit } END { exit !found }' "${TIERS_FILE}"
 }
 
 verify_sha() {  # file expected-sha (empty = not enforced)

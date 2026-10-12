@@ -28,7 +28,7 @@ instantiate() {
     dpkg-deb -x "${KYR_DEB}" "${SCRATCH}/x"
     cp -a "${SCRATCH}/x/usr/local/share/kyr-build/template/." "${dir}/"
     rm -rf "${SCRATCH}/x"
-    sed -i -E "s|^own[[:space:]]+kyr-build[[:space:]].*|own     kyr-build                 ${VER}      RomanHorshkov/Utils    ${KYR_SHA}|" "${dir}/deps.txt"
+    sed -i -E "s|^own[[:space:]]+kyr-build[[:space:]].*|own     kyr-build                 ${VER}      RomanHorshkov/kyr_build ${KYR_SHA}|" "${dir}/deps.txt"
     [[ -z "${tier}" ]] || sed -i "s|^# tier: .*|# tier: ${tier}|" "${dir}/deps.txt"
     ( cd "${dir}" && git init -q -b master && git add -A && git -c user.name=it -c user.email=it@localhost commit -q -m init && git remote add origin "git@github.com:owner/${name}.git" )
 }

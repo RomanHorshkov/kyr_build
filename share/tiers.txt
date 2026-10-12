@@ -3,23 +3,22 @@
 # --tiers refuses a declaration or a deb this list contradicts, and reads it for debs built before the field existed.
 # Products are never listed: a repository missing here may only declare itself a product, and adding one changes nothing
 # in kyr-build.
-# <tier> <name> [alias ...]   the first name is the repository's name after the rename, the rest are today's names;
-# a repository's own name is its origin remote's basename (or KYR_REPO), a pin's is the source column's.
+# <tier> <name>   a repository's own name is its origin remote's basename (or KYR_REPO), a pin's is the source column's.
 0 cicd
-0 kyr_build Utils
+0 kyr_build
 1 EMlog
 1 SPSCring
 1 MPSCring
 1 uuid7
 1 fs_util
-2 kyr_http DB_http
-2 kyr_jose DB_jose
-2 kyr_lmdb DB_lmdb
+2 kyr_http
+2 kyr_jose
+2 kyr_lmdb
 2 kyr_apply
 3 kyr_host
-4 kyr_core DB_app
-6 kyr_server DB_server
-4 kyr_shell HSFrontEnd
-7 kyr DB
-8 kyr_fleet install
+4 kyr_core
+6 kyr_server
+4 kyr_shell
+7 kyr
+8 kyr_fleet
 8 kyr_fleet_inventory
