@@ -9,7 +9,8 @@ DEB="${1:-}"; PROFILE="${2:-release}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${ROOT_DIR:-$(pwd -P)}"
 
-tool_version() { "$@" 2>/dev/null | head -1 || printf 'absent\n'; }
+# The first line, whatever the exit status; absent when there is none. Read whole: a pipe into head SIGPIPEs a tool still writing.
+tool_version() { local out; out="$("$@" 2>/dev/null)" || true; if [[ -n "${out}" ]]; then printf '%s\n' "${out%%$'\n'*}"; else printf 'absent\n'; fi; }
 field() { dpkg-deb -f "${DEB}" "$1" 2>/dev/null || true; }
 
 # shellcheck source=lib/root.sh
