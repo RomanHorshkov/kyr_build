@@ -12,6 +12,8 @@
 #   package (build_deb.sh)   package-smoke (smoke_test_package.sh against the built debs extracted into build/smoke)
 #   reproducible (check_reproducible.sh, when the build inputs are committed)   glibc-ceiling (check_hardening.sh --ceiling-only
 #   over every ELF under build/ but the sysroot and the smoke install, whatever the profile)   [post]
+#   warnings (check_warnings.sh: no compiler, assembler or linker warning line in any stage's log, for the tools -Werror does
+#   not stop; last, after every other stage and hook)
 #
 # Outside the build root the run is a development build: KYR_ALLOW_HOST_BUILD defaults to 1, so the package stage builds debs
 # whose buildinfo says Build-Root: none; a release is ./utils/build_deb.sh inside build_root.sh enter.
@@ -140,6 +142,7 @@ ceiling_scan() {  # every ELF this build made, whatever the profile: none may ne
 }
 stage glibc-ceiling ceiling_scan
 hook post
+stage warnings "${KYR_BUILD_DIR}/check_warnings.sh" "${LOG_DIR}"
 summary
 (( FAILED )) && { printf 'pipeline FAILED\n'; exit 1; }
 printf 'pipeline GREEN\n'

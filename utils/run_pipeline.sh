@@ -47,5 +47,6 @@ stage "wrappers-sync"  wrappers_sync
 stage "headers-syntax" header_syntax
 stage "package"        ./utils/build_deb.sh
 stage "ITs"            ./utils/run_ITs.sh
+stage "warnings"       bash share/check_warnings.sh "${LOG_DIR}/headers-syntax.log" "${LOG_DIR}/package.log"
 (( FAILED )) && { printf 'pipeline FAILED\n'; exit 1; }
 printf 'pipeline GREEN\n'
