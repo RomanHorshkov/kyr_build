@@ -10,7 +10,7 @@ STRICT=(-Wall -Wextra -Wpedantic -Wformat=2 -Wformat-signedness -Wshadow -Wundef
     -Wcast-align=strict -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wold-style-definition -Wredundant-decls
     -Wnested-externs -Wnull-dereference -Wdouble-promotion -Wfloat-equal -Wswitch-enum -Wswitch-default -Wimplicit-fallthrough=5
     -Wvla -Walloca -Wwrite-strings -Wpointer-arith -Wbad-function-cast -Wduplicated-cond -Wduplicated-branches -Wlogical-op
-    -Wjump-misses-init -Winit-self -Wshift-overflow=2 -Wbidi-chars=any -Wmissing-format-attribute -Werror)
+    -Wjump-misses-init -Winit-self -Wshift-overflow=2 -Wbidi-chars=any -Wmissing-format-attribute -Wunused-macros -Werror)
 PROFILES=(debug audit sanitize release native extreme tsan coverage)
 arr() { ROOT_DIR="${SCRATCH}" bash -c 'source "$1" > /dev/null && n="$2[@]" && printf " %s" "${!n}"; printf " \n"' _ "${CAT}" "$1"; }
 for p in "${PROFILES[@]}"; do

@@ -721,6 +721,12 @@ CFLAGS_WARN_STRICT=(
   # -Wpacked
   #   Warn about a packed attribute that changes nothing in the layout.
   -Wpacked
+
+  # -Wunused-macros
+  #   Warn about a macro a source file defines and never expands (a header's
+  #   macros are not reported): a leftover constant, a LOG_TAG with no log
+  #   call, a feature macro defined after the headers that read it.
+  -Wunused-macros
 )
 
 # =============================================================================
@@ -876,8 +882,6 @@ CFLAGS_WARN_ALL=(
 #                           and casts hide the conversions -Wconversion exists
 #                           to show
 #   -Wpadded                padding is a layout choice; the ABI gate records it
-#   -Wunused-macros         a macro used under one profile's #if only (NDEBUG,
-#                           a test seam) reads as unused in every other profile
 #   -Wdisabled-optimization a compiler resource limit, not a code defect
 #   -Wtraditional*, -Wc++-compat, -Wdeclaration-after-statement
 #                           other dialects' rules, not C11's
