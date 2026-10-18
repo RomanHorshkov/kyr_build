@@ -6,6 +6,8 @@
 #
 #   deps-tiers   template   legacy-names (check_legacy_names.sh: no pre-kyr name outside legacy_names.allow's history)
 #   pragmas (check_pragmas.sh: no diagnostic off-switch outside pragmas.allow, each entry with its reason)
+#   tables (check_tables.sh: the control-table rules R1-R6 over .def files, X-lists and const tables; tables.allow; R6 reports;
+#   KYR_TABLES_WARN=1 in the project file reports without failing, for one release)
 #   format (with the pinned clang-format major, else SKIP)   vendor (app/extern)   [checks]
 #   abi (abi/layout.txt)   build:<p> (build_libs.sh)   build-bin:<p> (build_bin.sh)   abi-exports   [build]
 #   unit-tests-release unit-tests integration integration-release sanitizers tsan stress-build stress-run (the suite wrappers)
@@ -89,6 +91,7 @@ stage deps-tiers ./utils/deps.sh check --tiers
 stage template "${KYR_BUILD_DIR}/template_check.sh" "${ROOT_DIR}"
 stage legacy-names "${KYR_BUILD_DIR}/check_legacy_names.sh" "${ROOT_DIR}"
 stage pragmas "${KYR_BUILD_DIR}/check_pragmas.sh" "${ROOT_DIR}"
+stage tables env KYR_TABLES_WARN="${KYR_TABLES_WARN:-0}" "${KYR_BUILD_DIR}/check_tables.sh" "${ROOT_DIR}"
 if has format.sh; then
     CF="$(clang_format_pinned)"
     if [[ -n "${CF}" ]]; then stage format env CLANG_FORMAT="${CF}" ./utils/format.sh --check
