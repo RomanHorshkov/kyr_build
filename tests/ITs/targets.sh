@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Several targets from one project file: binaries linked against the archive, the shared object or nothing; a vendored source
-# compiled with -w; per-profile tests with a support source, a shared variant, a white-box test that keeps the archive, an
+# compiled under its repository's listed flags; per-profile tests with a support source, a shared variant, a white-box test that keeps the archive, an
 # expected failure, an environment and a reset path; the coverage profile with its gate; a fuzz target in the standalone mode
 # (and libFuzzer where clang has it); the integration scripts with exit 77 as a skip.
 set -euo pipefail
@@ -23,8 +23,8 @@ size_t kyr_word_len(const char* s)
 }
 EOF
 printf '#include <stdio.h>\n#include "kyr/word/word.h"\nint main(void) { printf("%%zu\\n", kyr_word_len("abc")); return 0; }\n' > app/cli/main.c
-printf 'int support_value(void) { return 7; }\n' > tests/support/support.c
-printf 'int tiny_twice(int x);\nint support_value(void);\nint main(void) { return tiny_twice(support_value()) == 14 ? 0 : 1; }\n' > app/cli/tool.c
+printf 'int support_value(void);\nint support_value(void) { return 7; }\n' > tests/support/support.c
+printf 'int support_value(void);\nint main(void) { return support_value() == WORD_TOOL_EXPECT ? 0 : 1; }\n' > app/cli/tool.c
 cat > tests/UTs/env_tests.c <<'EOF'
 #include <setjmp.h>
 #include <stdarg.h>
@@ -66,6 +66,7 @@ cat > tests/fuzz/fuzz_len.c <<'EOF'
 
 #include "kyr/word/word.h"
 
+int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     char buf[64];
@@ -98,9 +99,9 @@ KYR_BINS=(word-cli word-cli-shared word-tool)
 KYR_BIN_WORD_CLI_SOURCES=(app/cli/main.c)
 KYR_BIN_WORD_CLI_SHARED_SOURCES=(app/cli/main.c)
 KYR_BIN_WORD_CLI_SHARED_LINK=shared
-KYR_BIN_WORD_TOOL_SOURCES=(app/cli/tool.c app/extern/tiny/tiny.c tests/support/support.c)
+KYR_BIN_WORD_TOOL_SOURCES=(app/cli/tool.c tests/support/support.c)
 KYR_BIN_WORD_TOOL_LINK=none
-KYR_BIN_WORD_TOOL_CPPFLAGS=(-w)
+KYR_BIN_WORD_TOOL_CPPFLAGS=(-DWORD_TOOL_EXPECT=7)
 KYR_TEST_SOURCES=(tests/UTs/word_tests.c tests/UTs/env_tests.c tests/UTs/must_fail_tests.c)
 KYR_TEST_SUPPORT_SOURCES=(tests/support/support.c)
 KYR_TEST_LINKAGES=(static shared)

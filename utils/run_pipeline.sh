@@ -21,11 +21,13 @@ shell_syntax() {
     while IFS= read -r f; do bash -n "${f}" || { printf 'syntax: %s\n' "${f}"; rc=1; }; done < <(find share utils tests -name '*.sh' | sort)
     return "${rc}"
 }
-header_syntax() {
-    local h rc=0
+header_syntax() {  # each header included as a consumer does: C11 under the catalog's whole set, C++17 under its C++ part
+    local h rc=0 c_flags cxx_flags=(-Wall -Wextra -Wconversion -Wsign-conversion -Wshadow -Wcast-qual -Wundef -Werror)
+    mapfile -t c_flags < <(ROOT_DIR="${ROOT_DIR}" bash -c 'source share/gcc_build_profiles.sh && printf "%s\n" "${CFLAGS_WARN_ALL[@]}"')
+    (( ${#c_flags[@]} > 30 )) || { printf 'the catalog gave %s warning flags\n' "${#c_flags[@]}"; return 1; }
     for h in app/include/kyr/util/*.h; do
-        gcc -std=c11 -fsyntax-only -Wall -Wextra -Wpedantic -Iapp/include -x c "${h}" || rc=1
-        g++ -std=c++17 -fsyntax-only -Wall -Wextra -Iapp/include -x c++ "${h}" || rc=1
+        printf '#include <kyr/util/%s>\ntypedef int kyr_util_header_check;\n' "${h##*/}" | gcc -std=c11 -fsyntax-only "${c_flags[@]}" -Iapp/include -x c - || rc=1
+        printf '#include <kyr/util/%s>\ntypedef int kyr_util_header_check;\n' "${h##*/}" | g++ -std=c++17 -fsyntax-only "${cxx_flags[@]}" -Iapp/include -x c++ - || rc=1
         printf 'checked %s\n' "${h}"
     done
     return "${rc}"

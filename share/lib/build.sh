@@ -5,7 +5,9 @@
 #
 #   library   KYR_LIB                 lib<KYR_LIB>.so.<ver>, lib<KYR_LIB>.a
 #             KYR_LIB_SOURCES         C sources, relative to ROOT_DIR
-#             KYR_LIB_VENDOR_SOURCES  vendored sources: the same flags plus -w, minus KYR_VENDOR_DROP_CFLAGS (default -fanalyzer)
+#             KYR_LIB_VENDOR_SOURCES  vendored sources (app/extern): the profile's flags without its warnings and without
+#                                     KYR_VENDOR_DROP_CFLAGS (default -fanalyzer), then KYR_LIB_VENDOR_CFLAGS, the warning flags
+#                                     the vendored code is built under (default none: GCC's own); -Werror holds, never -w
 #             KYR_LIB_CPPFLAGS        include and define flags (default -I<root>/app/include)
 #             KYR_LIB_LDLIBS          what the shared link needs
 #             KYR_LIB_MAP             version script; its <NODE>_<n> node must name VERSION's major
@@ -82,21 +84,32 @@ kyr_compile() {  # <obj_dir> <src ...> -> KYR_OBJECTS
 }
 KYR_EXTRA_CPPFLAGS=()
 
-# kyr_compile_vendor <obj_dir> <src ...>: appends to KYR_OBJECTS; third-party code keeps its own warnings to itself
-kyr_compile_vendor() {
-    local obj_dir="$1" src obj flag drop keep; shift
-    local cflags=() drops=(-fanalyzer)
+# kyr_vendor_cflags: KYR_REPLY=(the selected profile's flags without its warning options (-Werror kept) and without
+# KYR_VENDOR_DROP_CFLAGS, then KYR_LIB_VENDOR_CFLAGS): a vendored file is its upstream's, byte for byte (vendor.sh), built under
+# the warnings its repository lists for it, never silenced
+kyr_vendor_cflags() {
+    local flag drop keep drops=(-fanalyzer)
     declare -p KYR_VENDOR_DROP_CFLAGS > /dev/null 2>&1 && drops=("${KYR_VENDOR_DROP_CFLAGS[@]}")
+    KYR_REPLY=()
     for flag in "${KYR_CFLAGS[@]}"; do
+        [[ "${flag}" == -W* && "${flag}" != -Werror ]] && continue
         keep=1
         for drop in "${drops[@]}"; do [[ "${flag}" == "${drop}" ]] && keep=0; done
-        (( keep )) && cflags+=("${flag}")
+        (( keep )) && KYR_REPLY+=("${flag}")
     done
+    declare -p KYR_LIB_VENDOR_CFLAGS > /dev/null 2>&1 && KYR_REPLY+=("${KYR_LIB_VENDOR_CFLAGS[@]}")
+    return 0
+}
+
+# kyr_compile_vendor <obj_dir> <src ...>: appends to KYR_OBJECTS
+kyr_compile_vendor() {
+    local obj_dir="$1" src obj; shift
+    kyr_vendor_cflags; local cflags=("${KYR_REPLY[@]}")
     mkdir -p "${obj_dir}"
     for src in "$@"; do
         obj="${obj_dir}/${src//\//__}.o"
         printf 'CC %s (vendored)\n' "${src}"
-        "${CC}" "${KYR_CPPFLAGS[@]}" "${KYR_LIB_CPPFLAGS[@]}" "${KYR_EXTRA_CPPFLAGS[@]}" "${cflags[@]}" "${CFLAGS_SHARED[@]}" -w \
+        "${CC}" "${KYR_CPPFLAGS[@]}" "${KYR_LIB_CPPFLAGS[@]}" "${KYR_EXTRA_CPPFLAGS[@]}" "${cflags[@]}" "${CFLAGS_SHARED[@]}" \
             -c "${ROOT_DIR}/${src}" -o "${obj}" || kyr_die "compile failed"
         KYR_OBJECTS+=("${obj}")
     done

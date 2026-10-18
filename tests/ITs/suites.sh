@@ -21,6 +21,7 @@ size_t kyr_word_len(const char* s)
 }
 
 #ifdef KYR_WORD_TESTING
+int kyr_word_test_seam(void);
 int kyr_word_test_seam(void)
 {
     return 42;
@@ -132,7 +133,7 @@ readelf -d build/ITs/release/shared/it/it | grep -q 'NEEDED.*libkyr_word.so.0' |
 grep -qP '^PASS\trelease\tstatic\tbench\t12\.5\t80\t' tests/results/stress/stress_summary.tsv || { cat tests/results/stress/stress_summary.tsv; fail "stress metrics"; }
 
 # The gate fails a run below it.
-printf 'int kyr_word_never_called(int x)\n{\n    return x > 1 ? x : -x;\n}\n' >> app/src/word.c
+printf 'int kyr_word_never_called(int x);\nint kyr_word_never_called(int x)\n{\n    return x > 1 ? x : -x;\n}\n' >> app/src/word.c
 ./utils/build_UTs.sh > "${SCRATCH}/ut2.log" 2>&1 && fail "coverage below 100% passed the gate"
 g checkout -q app/src/word.c
 

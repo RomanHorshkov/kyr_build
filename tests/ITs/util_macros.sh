@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The three macro headers ship as kyr-util-* debs and hold as C11 and C++17: every conversion and every flag test is
-# checked at compile time and at run time against the installed copies, not the source tree.
+# The three macro headers ship as kyr-util-* debs and hold as C11 under the catalog's whole warning set and -Werror, and as C++17:
+# every conversion and every flag test is checked at compile time and at run time against the installed copies.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 for h in time-macros memory-macros bit-macros; do
@@ -53,9 +53,12 @@ int main(void)
 }
 SRC
 I="${SCRATCH}/inc/usr/local/include"
-gcc -std=c11 -Wall -Wextra -Werror -pedantic -I"${I}" -o "${SCRATCH}/t_c" "${SCRATCH}/t.c" || fail "C11 compile"
+dpkg-deb -x "${KYR_DEB}" "${SCRATCH}/kb"
+mapfile -t WARN < <(ROOT_DIR="${SCRATCH}" bash -c 'source "$1" && printf "%s\n" "${CFLAGS_WARN_ALL[@]}"' _ "${SCRATCH}/kb/usr/local/share/kyr-build/gcc_build_profiles.sh")
+(( ${#WARN[@]} > 30 )) || fail "the catalog gave ${#WARN[@]} warning flags"
+gcc -std=c11 -O2 "${WARN[@]}" -I"${I}" -o "${SCRATCH}/t_c" "${SCRATCH}/t.c" || fail "C11 compile"
 [[ "$("${SCRATCH}/t_c")" == ok ]] || fail "C11 run"
 cp "${SCRATCH}/t.c" "${SCRATCH}/t.cpp"
-g++ -std=c++17 -Wall -Wextra -Werror -pedantic -I"${I}" -o "${SCRATCH}/t_cpp" "${SCRATCH}/t.cpp" || fail "C++17 compile"
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow -Wcast-qual -Wundef -Werror -I"${I}" -o "${SCRATCH}/t_cpp" "${SCRATCH}/t.cpp" || fail "C++17 compile"
 [[ "$("${SCRATCH}/t_cpp")" == ok ]] || fail "C++17 run"
 printf 'ok util_macros\n'

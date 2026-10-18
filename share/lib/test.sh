@@ -413,8 +413,9 @@ kyr_fuzz_build() {
                     "${CC}" "${KYR_CPPFLAGS[@]}" "${KYR_LIB_CPPFLAGS[@]}" "${cpp[@]}" "${KYR_CFLAGS[@]}" -c "${s}" -o "${out}/obj/${s//\//__}.o" || kyr_die "compile failed"
                     objs+=("${out}/obj/${s//\//__}.o")
                 done
+                kyr_vendor_cflags; local vflags=("${KYR_REPLY[@]}")
                 for s in "${vendor[@]}"; do
-                    "${CC}" "${KYR_CPPFLAGS[@]}" "${KYR_LIB_CPPFLAGS[@]}" "${cpp[@]}" "${KYR_CFLAGS[@]}" -w -c "${s}" -o "${out}/obj/${s//\//__}.o" || kyr_die "compile failed"
+                    "${CC}" "${KYR_CPPFLAGS[@]}" "${KYR_LIB_CPPFLAGS[@]}" "${cpp[@]}" "${vflags[@]}" -c "${s}" -o "${out}/obj/${s//\//__}.o" || kyr_die "compile failed"
                     objs+=("${out}/obj/${s//\//__}.o")
                 done
             else
@@ -480,7 +481,8 @@ kyr_run_it_scripts() {
 }
 
 # kyr_smoke_package: compiles KYR_SMOKE_SOURCE (default tests/package/smoke.c) against the INSTALLED package only
-# (${KYR_SMOKE_PREFIX:-/usr/local}: include/, lib/), never the build tree, and runs it. KYR_SMOKE_HEADER (default KYR_LIB_HEADER
+# (${KYR_SMOKE_PREFIX:-/usr/local}: include/, lib/), never the build tree, under the whole warning set and -Werror (the public
+# header as a consumer includes it), and runs it. KYR_SMOKE_HEADER (default KYR_LIB_HEADER
 # below app/include or app) must be installed; KYR_SMOKE_CPPFLAGS and KYR_SMOKE_LDLIBS add to the compile and the link.
 kyr_smoke_package() {
     local prefix="${KYR_SMOKE_PREFIX:-/usr/local}" src="${ROOT_DIR}/${KYR_SMOKE_SOURCE:-tests/package/smoke.c}" header work rc=0
@@ -490,8 +492,8 @@ kyr_smoke_package() {
     _kyr_arr KYR_SMOKE_CPPFLAGS; local cpp=("${KYR_REPLY[@]}")
     _kyr_arr KYR_SMOKE_LDLIBS; local ldlibs=("${KYR_REPLY[@]}")
     work="$(mktemp -d)"
-    if "${CC}" -std=c11 -Wall -Wextra -Werror "${cpp[@]}" -I"${prefix}/include" "${src}" \
-        -L"${prefix}/lib" -Wl,-rpath,"${prefix}/lib" -l"${KYR_LIB}" "${ldlibs[@]}" -o "${work}/smoke"; then
+    if "${CC}" -std=c11 "${CFLAGS_WARN_ALL[@]}" "${cpp[@]}" -I"${prefix}/include" "${src}" \
+        -L"${prefix}/lib" -Wl,-rpath,"${prefix}/lib" "${LDFLAGS_FATAL[@]}" -l"${KYR_LIB}" "${ldlibs[@]}" -o "${work}/smoke"; then
         "${work}/smoke" || rc=$?
     else
         rc=1

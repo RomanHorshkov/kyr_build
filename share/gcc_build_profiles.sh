@@ -79,9 +79,12 @@
 #
 #   2. warnings
 #      Compile-time diagnostics. They do not make the final binary slower.
-#      They can increase build noise and, if paired with -Werror, can make the
-#      build more brittle across compiler versions. This file deliberately does
-#      not enable -Werror by default.
+#      Every profile carries the whole strict set and -Werror, the tests'
+#      builds included, and every link -Wl,--fatal-warnings: no build passes
+#      with a warning, under the host's gcc or the build root's (zero
+#      tolerated, the "Power of 10" rule 10 stance). The set is what both
+#      compilers accept; each flag's reason is next to it, the flags left out
+#      are under "Left Out" with theirs.
 #
 #   3. instrumentation / hardening
 #      Runtime checks or safety mechanisms inserted into the generated binary.
@@ -96,7 +99,7 @@
 # The profiles below keep those concerns explicit:
 #
 #   debug
-#       Friction-minimized debugger-oriented development profile.
+#       Debugger-oriented development profile (-Og, no inlining).
 #
 #   audit
 #       Compiler-driven validation profile with strong warnings and GCC static
@@ -668,6 +671,56 @@ CFLAGS_WARN_STRICT=(
   #   specially, but designated initializers are often clearer:
   #       struct cfg c = { .mode = MODE_X, .size = 42 };
   -Wmissing-field-initializers
+
+  # -Wjump-misses-init
+  #   Warn when a goto or a case label jumps forward past a variable's
+  #   initialization: the variable is in scope there with no value.
+  -Wjump-misses-init
+
+  # -Winit-self
+  #   Warn about a variable initialized with itself (int i = i;), the idiom that
+  #   hides an uninitialized read from -Wuninitialized.
+  -Winit-self
+
+  # -Wnested-externs
+  #   Warn about an extern declaration inside a function: the declaration
+  #   belongs in a header, where every user sees the one prototype.
+  -Wnested-externs
+
+  # -Wformat-signedness
+  #   With -Wformat: %d given an unsigned value, %u given a signed one. The
+  #   output is wrong for half the range, and a wrong log line is a lie.
+  -Wformat-signedness
+
+  # -Wshift-overflow=2
+  #   Also warn when a left shift moves a 1 into the sign bit of a signed type
+  #   (1 << 31): undefined behaviour in C11.
+  -Wshift-overflow=2
+
+  # -Wmissing-format-attribute
+  #   Warn when a function hands its format string and va_list to a printf-like
+  #   function without carrying the format attribute itself: its callers'
+  #   arguments would go unchecked.
+  -Wmissing-format-attribute
+
+  # -Wbidi-chars=any
+  #   Refuse every bidirectional control character in the source, paired or
+  #   not (Trojan Source, CVE-2021-42574).
+  -Wbidi-chars=any
+
+  # -Wuse-after-free=3
+  #   Level 3 also diagnoses a freed or reallocated pointer used in an equality
+  #   comparison.
+  -Wuse-after-free=3
+
+  # -Wstack-protector
+  #   Warn about a function the stack protector cannot protect (with
+  #   -fstack-protector-strong in effect).
+  -Wstack-protector
+
+  # -Wpacked
+  #   Warn about a packed attribute that changes nothing in the layout.
+  -Wpacked
 )
 
 # =============================================================================
@@ -757,15 +810,83 @@ CFLAGS_WARN_PARANOID=(
   -Wredundant-decls
 )
 
-CFLAGS_WARN_EXPERIMENTAL=(
-  # -Wstrict-overflow=5
-  #   Warn about optimizations based on the assumption that signed overflow is
-  #   undefined behavior.
-  #
-  #   GCC documents level 5 as very noisy. Keep it for audit-style integer
-  #   reviews, but do not make it part of normal release policy.
-  -Wstrict-overflow=5
+# =============================================================================
+# MARK: Stack Bound
+# Warning group 4: the stack a function may take
+# =============================================================================
+#
+# CFLAGS_WARN_STACK (every profile without instrumentation: sanitizers and
+# coverage measure their own frames, not the code's)
+#
+# -Wframe-larger-than=<n>
+#   Warn about a function whose frame exceeds n bytes.
+#
+# -Wstack-usage=<n>
+#   Warn about a function whose stack use may exceed n bytes, and about any
+#   whose use is unbounded (a VLA, alloca): every frame has a fixed bound.
+#
+# n is GCC_BUILD_STACK_MAX, default 16384 bytes: above the largest frame
+# measured across the platform's code for 3.1.0, with headroom.
+#
+GCC_BUILD_STACK_MAX="${GCC_BUILD_STACK_MAX:-16384}"
+CFLAGS_WARN_STACK=(
+  -Wframe-larger-than="${GCC_BUILD_STACK_MAX}"
+  -Wstack-usage="${GCC_BUILD_STACK_MAX}"
 )
+
+# =============================================================================
+# MARK: Zero Warnings
+# Every warning is an error, in every profile; every link refuses its warnings
+# =============================================================================
+#
+# -Werror
+#   A warning fails the build. The pipeline's warnings stage also refuses any
+#   warning line a tool printed without stopping (check_warnings.sh).
+#
+# -Wl,--fatal-warnings
+#   The linker's -Werror: an executable-stack note, a dangerous-function note,
+#   a textrel, any ld warning fails the link.
+#
+CFLAGS_WARN_ERROR=(
+  -Werror
+)
+
+LDFLAGS_FATAL=(
+  -Wl,--fatal-warnings
+)
+
+CFLAGS_WARN_ALL=(
+  "${CFLAGS_WARN_CORE[@]}"
+  "${CFLAGS_WARN_API[@]}"
+  "${CFLAGS_WARN_STRICT[@]}"
+  "${CFLAGS_WARN_PARANOID[@]}"
+  "${CFLAGS_WARN_ERROR[@]}"
+)
+
+# =============================================================================
+# MARK: Left Out
+# Warnings measured and left out of the set, with the reason
+# =============================================================================
+#
+#   -Wstrict-overflow=5     reports the optimizer's assumptions, not the code's
+#                           defects, and changes with each GCC; the sanitize
+#                           profile's UBSan catches a real signed overflow
+#   -Warith-conversion      -Wconversion on arithmetic whose operands already
+#                           have the result's type: a cast on every narrow sum,
+#                           and casts hide the conversions -Wconversion exists
+#                           to show
+#   -Wpadded                padding is a layout choice; the ABI gate records it
+#   -Wunused-macros         a macro used under one profile's #if only (NDEBUG,
+#                           a test seam) reads as unused in every other profile
+#   -Wdisabled-optimization a compiler resource limit, not a code defect
+#   -Wtraditional*, -Wc++-compat, -Wdeclaration-after-statement
+#                           other dialects' rules, not C11's
+#   -Wunsuffixed-float-constants, -Wlarger-than=
+#                           no defect class this code has
+#   GCC 14+ only (-Wflex-array-member-not-at-end, -Wcalloc-transposed-args
+#   outside -Wextra, -Wheader-guard, -Wtrailing-whitespace): the build root's
+#   gcc 13 does not know them; revisit with the next root
+#
 
 # =============================================================================
 # MARK: GCC Analyzer
@@ -1108,6 +1229,10 @@ LDFLAGS_SHARED=(
   #   Only record DT_NEEDED entries for libraries that actually satisfy a
   #   symbol reference. Keeps the dependency surface honest.
   -Wl,--as-needed
+
+  # -Wl,--fatal-warnings
+  #   Any linker warning fails the link (LDFLAGS_FATAL).
+  -Wl,--fatal-warnings
 )
 
 # =============================================================================
@@ -1212,7 +1337,10 @@ CFLAGS_OPT_NATIVE=(
   #   Compile/link time: higher, sometimes much higher.
   #   Tooling risk: needs compatible compiler, linker plugin, and archive tools.
   #   Use gcc-ar/gcc-ranlib for static libraries when needed.
-  -flto
+  #   =auto: the link-time code generation runs in parallel (make's jobserver,
+  #   else one job per CPU); a bare -flto compiles serially and lto-wrapper
+  #   says so with a warning.
+  -flto=auto
 
   # -march=native
   #   Generate instructions for the CPU of the build machine.
@@ -1230,9 +1358,9 @@ CFLAGS_OPT_EXTREME=(
   #   Same aggressive optimization as native.
   -O3
 
-  # -flto
-  #   Whole-program-ish optimization at link time.
-  -flto
+  # -flto=auto
+  #   Whole-program-ish optimization at link time, in parallel.
+  -flto=auto
 
   # -march=native
   #   Generate instructions for the CPU of the build machine.
@@ -1270,11 +1398,16 @@ CFLAGS_OPT_EXTREME=(
 # so the GCC driver runs the LTO pipeline and loads the required linker plugin.
 #
 LDFLAGS_LTO=(
-  # -flto
+  # -flto=auto
   #   Repeat LTO at link time so the link step performs cross-translation-unit
   #   optimization instead of merely seeing object files that were compiled with
-  #   LTO metadata.
-  -flto
+  #   LTO metadata; =auto runs its code generation in parallel.
+  -flto=auto
+
+  # -Werror
+  #   The link-time compilation reports its own warnings (a type mismatch
+  #   across units, a late overflow): they fail the link like any other.
+  -Werror
 )
 
 # =============================================================================
@@ -1312,21 +1445,16 @@ LDFLAGS_LTO=(
 # Use for:
 #   - day-to-day development;
 #   - interactive debugging;
-#   - stepping through control flow;
-#   - getting the program working before tightening quality gates.
+#   - stepping through control flow.
 #
 # Properties:
 #   Compile time: low to medium.
 #   Runtime speed: moderate.
 #   Memory usage: normal.
 #   Debuggability: excellent.
-#   Warning strictness: intentionally lighter than audit/release.
+#   Warning strictness: the whole set, as every profile.
 #   Hardening: intentionally minimal.
 #   Release suitability: not suitable.
-#
-# This profile is intentionally not the compiler-cleanup or hardening profile.
-# It exists so you can move fast while still getting the most useful basic
-# diagnostics and a good debugger experience.
 #
 CPPFLAGS_DEBUG=(
   "${CPPFLAGS_BASE[@]}"
@@ -1334,7 +1462,8 @@ CPPFLAGS_DEBUG=(
 
 CFLAGS_DEBUG=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_WARN_STACK[@]}"
   "${CFLAGS_OPT_DEBUG[@]}"
   "${CFLAGS_DEBUG_INFO[@]}"
 
@@ -1346,7 +1475,9 @@ CFLAGS_DEBUG=(
   -fno-inline
 )
 
-LDFLAGS_DEBUG=()
+LDFLAGS_DEBUG=(
+  "${LDFLAGS_FATAL[@]}"
+)
 
 # MARK: Audit Profile
 # AUDIT PROFILE
@@ -1378,18 +1509,17 @@ CPPFLAGS_AUDIT=(
 
 CFLAGS_AUDIT=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
-  "${CFLAGS_WARN_API[@]}"
-  "${CFLAGS_WARN_STRICT[@]}"
-  "${CFLAGS_WARN_PARANOID[@]}"
-  "${CFLAGS_WARN_EXPERIMENTAL[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_WARN_STACK[@]}"
   "${CFLAGS_OPT_CHECKED[@]}"
   "${CFLAGS_DEBUG_INFO[@]}"
   "${CFLAGS_GCC_ANALYZER[@]}"
   "${CFLAGS_HARDENING_FLAGS[@]}"
 )
 
-LDFLAGS_AUDIT=()
+LDFLAGS_AUDIT=(
+  "${LDFLAGS_FATAL[@]}"
+)
 
 # MARK: Sanitize Profile
 # SANITIZE PROFILE
@@ -1430,10 +1560,7 @@ CPPFLAGS_SANITIZE=(
 
 CFLAGS_SANITIZE=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
-  "${CFLAGS_WARN_API[@]}"
-  "${CFLAGS_WARN_STRICT[@]}"
-  "${CFLAGS_WARN_PARANOID[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
   "${CFLAGS_OPT_CHECKED[@]}"
   "${CFLAGS_DEBUG_INFO[@]}"
   "${CFLAGS_SANITIZER_ADDRESS[@]}"
@@ -1443,6 +1570,7 @@ CFLAGS_SANITIZE=(
 
 LDFLAGS_SANITIZE=(
   "${LDFLAGS_SANITIZER_ADDRESS[@]}"
+  "${LDFLAGS_FATAL[@]}"
 )
 
 # MARK: Release Profile
@@ -1475,9 +1603,8 @@ CPPFLAGS_RELEASE=(
 
 CFLAGS_RELEASE=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
-  "${CFLAGS_WARN_API[@]}"
-  "${CFLAGS_WARN_STRICT[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_WARN_STACK[@]}"
   "${CFLAGS_OPT_RELEASE[@]}"
   "${CFLAGS_EXE_HARDENING[@]}"
   "${CFLAGS_HARDENING_FLAGS[@]}"
@@ -1485,6 +1612,7 @@ CFLAGS_RELEASE=(
 
 LDFLAGS_RELEASE=(
   "${LDFLAGS_EXE_HARDENING[@]}"
+  "${LDFLAGS_FATAL[@]}"
 )
 
 # MARK: Native Profile
@@ -1517,9 +1645,8 @@ CPPFLAGS_NATIVE=(
 
 CFLAGS_NATIVE=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
-  "${CFLAGS_WARN_API[@]}"
-  "${CFLAGS_WARN_STRICT[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_WARN_STACK[@]}"
   "${CFLAGS_OPT_NATIVE[@]}"
   "${CFLAGS_EXE_HARDENING[@]}"
   "${CFLAGS_HARDENING_FLAGS[@]}"
@@ -1528,6 +1655,7 @@ CFLAGS_NATIVE=(
 LDFLAGS_NATIVE=(
   "${LDFLAGS_LTO[@]}"
   "${LDFLAGS_EXE_HARDENING[@]}"
+  "${LDFLAGS_FATAL[@]}"
 )
 
 # MARK: Extreme Profile
@@ -1561,15 +1689,16 @@ CPPFLAGS_EXTREME=(
 CFLAGS_EXTREME=(
   "${CFLAGS_BASE[@]}"
 
-  # Keep core warnings because they have no runtime cost.
-  # Remove even these only if a third-party dependency makes your build noisy.
-  "${CFLAGS_WARN_CORE[@]}"
+  # The whole set: warnings have no runtime cost.
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_WARN_STACK[@]}"
 
   "${CFLAGS_OPT_EXTREME[@]}"
 )
 
 LDFLAGS_EXTREME=(
   "${LDFLAGS_LTO[@]}"
+  "${LDFLAGS_FATAL[@]}"
 )
 
 # MARK: TSAN Profile
@@ -1594,10 +1723,7 @@ CPPFLAGS_TSAN=(
 
 CFLAGS_TSAN=(
   "${CFLAGS_BASE[@]}"
-  "${CFLAGS_WARN_CORE[@]}"
-  "${CFLAGS_WARN_API[@]}"
-  "${CFLAGS_WARN_STRICT[@]}"
-  "${CFLAGS_WARN_PARANOID[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
   "${CFLAGS_OPT_CHECKED[@]}"
   "${CFLAGS_DEBUG_INFO[@]}"
   "${CFLAGS_SANITIZER_THREAD[@]}"
@@ -1607,6 +1733,7 @@ CFLAGS_TSAN=(
 
 LDFLAGS_TSAN=(
   "${LDFLAGS_SANITIZER_THREAD[@]}"
+  "${LDFLAGS_FATAL[@]}"
 )
 
 # =============================================================================
@@ -1616,14 +1743,18 @@ LDFLAGS_TSAN=(
 #
 # What lib/test.sh compiles a coverage run with (library and tests alike): -O0
 # after -Og so gcov line and branch data map one to one onto the source. Not in
-# GCC_BUILD_PROFILES: nothing ships from it.
+# GCC_BUILD_PROFILES: nothing ships from it. No stack bound: instrumented frames.
 #
 CPPFLAGS_COVERAGE=(
   "${CPPFLAGS_DEBUG[@]}"
 )
 
 CFLAGS_COVERAGE=(
-  "${CFLAGS_DEBUG[@]}"
+  "${CFLAGS_BASE[@]}"
+  "${CFLAGS_WARN_ALL[@]}"
+  "${CFLAGS_OPT_DEBUG[@]}"
+  "${CFLAGS_DEBUG_INFO[@]}"
+  -fno-inline
   -O0
   "${CFLAGS_INSTRUMENT_COVERAGE[@]}"
 )
@@ -1762,10 +1893,12 @@ LDFLAGS_COVERAGE=(
 #       tsan where relevant
 #       release
 #
-# Optional CI strictness:
-#   Add -Werror in CI only after the warning set has proven stable.
-#   Do not enable -Werror in this file by default; doing so makes compiler
-#   upgrades and third-party headers unnecessarily painful.
+# Zero warnings (3.1.0): -Werror and --fatal-warnings are in every profile, the
+#   tests' builds included. A dependency's headers are included with -isystem
+#   and gated in their own repository; vendored code (app/extern) is built under
+#   its repository's KYR_LIB_VENDOR_CFLAGS, never -w, never silenced inline. A
+#   project file may still extend an array (gcc_build_add), never with -Wno-*:
+#   the pipeline's pragmas stage refuses it outside pragmas.allow.
 #
 # Linker hardening — two distinct policies, never mixed:
 #   Executables (release/native LDFLAGS):
@@ -1825,30 +1958,32 @@ _explain() {
     cat <<'TXT'
 Available profiles:
 
+Every profile: the whole warning set, -Werror, -Wl,--fatal-warnings; the
+stack bound (-Wframe-larger-than, -Wstack-usage) where nothing is instrumented.
+
   debug
-      Friction-minimized development profile: -Og, -g3, frame pointers, no
-      forced inlining, core warnings only, and no forced stack protection.
+      Development profile: -Og, -g3, frame pointers, no inlining, no forced
+      stack protection.
 
   audit
-      Compiler-centric validation profile: strong warnings, GCC static analyzer,
-      debug information, and hardening.
+      Compiler-centric validation profile: GCC static analyzer, debug
+      information, and hardening.
 
   sanitize
-      Runtime bug-hunting profile: strong warnings, ASan + UBSan + LSan, debug
-      information, and hardening (minus _FORTIFY_SOURCE, which conflicts with
-      ASan's interceptors).
+      Runtime bug-hunting profile: ASan + UBSan + LSan, debug information, and
+      hardening (minus _FORTIFY_SOURCE, which conflicts with ASan's
+      interceptors).
 
   release
-      Portable production profile: -O2, -DNDEBUG, strong warnings, and
-      baseline hardening.
+      Portable production profile: -O2, -DNDEBUG, and baseline hardening.
 
   native
-      Local-machine tuned release-like profile: -O3, -flto, -march=native, and
-      hardening still enabled.
+      Local-machine tuned release-like profile: -O3, -flto=auto, -march=native,
+      and hardening still enabled.
 
   extreme
-      Maximum-performance local-machine profile: -O3, -flto, -march=native,
-      no frame pointer, no stack protector, and no fortify.
+      Maximum-performance local-machine profile: -O3, -flto=auto,
+      -march=native, no frame pointer, no stack protector, and no fortify.
 
   tsan
       Optional ThreadSanitizer profile. Use separately from AddressSanitizer.
