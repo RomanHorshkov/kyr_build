@@ -909,9 +909,11 @@ CFLAGS_WARN_ALL=(
 # Compile-time cost: can be very high.
 # Runtime cost: none.
 # Binary-size cost: none.
-# False positives: possible.
-# Recommended usage: reserve this for deeper validation runs rather than every
-# incremental rebuild.
+# False positives: possible, and they differ between GCC releases.
+# In the audit profile, over the library, the binaries and the tests: under
+# -Werror its findings fail the build like any warning. A second analyzer pass
+# over the release profile was measured for 3.1.0 and found nothing the audit
+# pass does not, so there is no separate stage.
 #
 CFLAGS_GCC_ANALYZER=(
   -fanalyzer
