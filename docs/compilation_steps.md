@@ -21,7 +21,7 @@
                                      │
                                      │  CFLAGS
                                      │
-                                     │    -std=c17
+                                     │    -std=c11
                                      │    -Wall -Wextra
                                      │    -O0 / -O2 / -O3
                                      │    -g
